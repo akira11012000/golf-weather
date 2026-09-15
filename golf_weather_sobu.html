@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>総武CC ゴルフ天気</title>
+<style>
+:root{--bg:#f4f6f3;--card:#fff;--ink:#1d2a22;--sub:#5f6f65;--line:#dfe5e0;--green:#2f7d4f;--rain:#2f6fd6;--rainbg:#e3edfc;--warn:#b5651d;--ok:#2f7d4f;--bad:#c0392b}
+@media (prefers-color-scheme:dark){:root{--bg:#121714;--card:#1b221e;--ink:#e6ece8;--sub:#9aaaa0;--line:#2c3630;--green:#5bbd83;--rain:#7aa7ff;--rainbg:#1d2a40;--warn:#e0a060;--ok:#5bbd83;--bad:#ff7a6b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,"Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;font-size:16px;line-height:1.5}
+header{background:var(--green);color:#fff;padding:14px 16px}
+header h1{margin:0;font-size:20px}
+header .s{font-size:13px;opacity:.9}
+main{max-width:760px;margin:0 auto;padding:12px 16px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
+h2{font-size:17px;margin:0 0 8px}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+.tabs button{flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:8px 10px;font-size:15px;cursor:pointer}
+.tabs button.on{background:var(--green);color:#fff;border-color:var(--green)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.set label{font-size:14px;color:var(--sub)}
+.set select{font-size:16px;padding:4px}
+.big{font-size:28px;font-weight:700}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.kpi{border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.kpi .l{font-size:13px;color:var(--sub)}
+.kpi .v{font-size:22px;font-weight:700}
+.badge{display:inline-block;padding:4px 12px;border-radius:999px;font-weight:700;color:#fff}
+.hi{background:var(--ok)}.mid{background:var(--warn)}.lo{background:var(--bad)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+th{color:var(--sub);font-weight:600;font-size:12px}
+td.r{background:var(--rainbg);color:var(--rain);font-weight:700}
+.scroll{overflow-x:auto}
+.note{font-size:13px;color:var(--sub)}
+.err{color:var(--bad)}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--green)}
+</style>
+</head>
+<body>
+<header>
+  <h1>総武カントリークラブ 北コース ゴルフ天気</h1>
+  <div class="s">4つの予報モデルを比較・このゴルフ場での実績で重み付け</div>
+</header>
+<main>
+  <div class="card set">
+    <div class="row">
+      <label>プレー時間
+        <select id="st"></select> 〜 <select id="en"></select>
+      </label>
+      <button id="reload" style="font-size:15px;padding:6px 12px">最新に更新</button>
+    </div>
+    <div id="status" class="note">読み込み中…</div>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div class="card" id="summary"></div>
+  <div class="card"><h2>1時間ごとの予報</h2><div class="scroll" id="hourly"></div>
+    <div class="note">「総合」は下の実績で重み付けした平均です。青いマスは雨（1時間0.3mm以上）。</div></div>
+  <div class="card" id="acc"><h2>このゴルフ場での的中実績</h2><div id="accBody" class="note">計算中…</div></div>
+  <div class="card note">
+    <b>見かた</b><br>
+    ・<b>信頼度</b>：4つのモデルの予報がそろっているほど高くなります。「低」のときは前日夜にもう一度確認してください。<br>
+    ・<b>的中実績</b>：過去約1週間、各モデルが「前日」に出した予報と、近くのアメダス（気象庁の実測）を比べた結果です。開くたびに計算し直します。<br>
+    ・データ：Open-Meteo（予報）、気象庁アメダス（実測）。台風の進路は気象庁の台風情報もあわせて確認してください。
+  </div>
+</main>
+<script>
+const LAT=35.7856, LON=140.1785;
+const MODELS=[
+  {id:"jma_seamless",name:"気象庁"},
+  {id:"ecmwf_ifs025",name:"ヨーロッパ"},
+  {id:"gfs_seamless",name:"アメリカ"},
+  {id:"icon_seamless",name:"ドイツ"}
+];
+const RAIN=0.3; // mm/h
+const $=id=>document.getElementById(id);
+let S={fc:{},prev:{},obs:null,station:null,weights:null,day:null};
+
+const pad=n=>String(n).padStart(2,"0");
+function jstNow(){const d=new Date(Date.now()+9*3600e3);return d;} // use UTC getters
+function ymd(d){return d.getUTCFullYear()+"-"+pad(d.getUTCMonth()+1)+"-"+pad(d.getUTCDate());}
+const WD=["日","月","火","水","木","金","土"];
+function dirJa(deg){if(deg==null)return"";const a=["北","北北東","北東","東北東","東","東南東","南東","南南東","南","南南西","南西","西南西","西","西北西","北西","北北西"];return a[Math.round(deg/22.5)%16];}
+const f1=v=>v==null||isNaN(v)?"-":(Math.round(v*10)/10).toFixed(1);
+
+for(let h=5;h<=18;h++){$("st").add(new Option(h+"時",h));$("en").add(new Option(h+"時",h));}
+$("st").value=7;$("en").value=15;
+$("st").onchange=$("en").onchange=render;
+$("reload").onclick=load;
+
+async function getJSON(url){const r=await fetch(url);if(!r.ok)throw new Error(r.status+" "+url);return r.json();}
+
+async function loadForecast(){
+  const base="https://api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+
+    "&hourly=temperature_2m,precipitation,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&timezone=Asia%2FTokyo&forecast_days=7&models=";
+  await Promise.all(MODELS.map(async m=>{
+    try{S.fc[m.id]=(await getJSON(base+m.id)).hourly;}catch(e){S.fc[m.id]=null;}
+  }));
+}
+async function loadPrev(){
+  const v=["temperature_2m_previous_day1","precipitation_previous_day1","temperature_2m_previous_day2","precipitation_previous_day2"].join(",");
+  const base="https://previous-runs-api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+
+    "&hourly="+v+"&timezone=Asia%2FTokyo&past_days=9&forecast_days=1&models=";
+  await Promise.all(MODELS.map(async m=>{
+    try{S.prev[m.id]=(await getJSON(base+m.id)).hourly;}catch(e){S.prev[m.id]=null;}
+  }));
+}
+async function loadObs(){
+  const tbl=await getJSON("https://www.jma.go.jp/bosai/amedas/const/amedastable.json");
+  let best=null,bd=1e9;
+  for(const [code,s] of Object.entries(tbl)){
+    if(!s.elems||s.elems[0]!=="1"||s.elems[1]!=="1")continue;
+    const la=s.lat[0]+s.lat[1]/60, lo=s.lon[0]+s.lon[1]/60;
+    const d=Math.hypot(la-LAT,(lo-LON)*Math.cos(LAT*Math.PI/180));
+    if(d<bd){bd=d;best={code,name:s.kjName,km:d*111};}
+  }
+  S.station=best;
+  const obs={}; const now=jstNow(); const jobs=[];
+  for(let k=1;k<=8;k++){
+    const d=new Date(now.getTime()-k*86400e3);
+    const key=d.getUTCFullYear()+pad(d.getUTCMonth()+1)+pad(d.getUTCDate());
+    for(const hh of ["06","09","12","15","18"]){
+      jobs.push(getJSON("https://www.jma.go.jp/bosai/amedas/data/point/"+best.code+"/"+key+"_"+hh+".json").then(j=>{
+        for(const [t,e] of Object.entries(j)){
+          if(t.slice(10,14)!=="0000")continue;
+          const iso=t.slice(0,4)+"-"+t.slice(4,6)+"-"+t.slice(6,8)+"T"+t.slice(8,10)+":00";
+          obs[iso]={t:e.temp?e.temp[0]:null,p:e.precipitation1h?e.precipitation1h[0]:null};
+        }
+      }).catch(()=>{}));
+    }
+  }
+  await Promise.all(jobs);
+  S.obs=obs;
+}
+
+function computeAccuracy(){
+  const res={};
+  for(const m of MODELS){
+    const P=S.prev[m.id]; res[m.id]={};
+    for(const lead of [1,2]){
+      let n=0,hit=0,te=0,tn=0,pe=0,rainObs=0,rainCaught=0;
+      if(P&&S.obs){
+        P.time.forEach((t,i)=>{
+          const h=+t.slice(11,13); if(h<7||h>17)return;
+          const o=S.obs[t]; if(!o)return;
+          const ft=P["temperature_2m_previous_day"+lead][i], fp=P["precipitation_previous_day"+lead][i];
+          if(o.t!=null&&ft!=null){te+=Math.abs(ft-o.t);tn++;}
+          if(o.p!=null&&fp!=null){
+            n++; const or=o.p>=0.5, fr=fp>=RAIN;
+            if(or===fr)hit++;
+            if(or){rainObs++; if(fr)rainCaught++;}
+            pe+=Math.abs(fp-o.p);
+          }
+        });
+      }
+      res[m.id][lead]={n,hit:n?hit/n:null,tmae:tn?te/tn:null,pmae:n?pe/n:null,rainObs,rainCaught};
+    }
+  }
+  // weights from lead-1 scores
+  const w={};let sum=0;
+  for(const m of MODELS){
+    const a=res[m.id][1];
+    if(!S.fc[m.id]){w[m.id]=0;continue;}
+    if(a.n<20||a.tmae==null){w[m.id]=1;}
+    else w[m.id]=(a.hit)/(0.5+a.tmae)+1/(0.3+a.pmae);
+    sum+=w[m.id];
+  }
+  for(const k in w)w[k]=sum?w[k]/sum:0;
+  S.acc=res; S.weights=w;
+}
+
+function load(){
+  $("status").textContent="最新の予報を読み込み中…";
+  S={fc:{},prev:{},obs:null,station:null,weights:null,day:S.day};
+  Promise.all([loadForecast(),loadPrev(),loadObs().catch(e=>{S.obsErr=String(e);})]).then(()=>{
+    computeAccuracy();
+    const ok=MODELS.filter(m=>S.fc[m.id]).length;
+    const d=jstNow();
+    $("status").innerHTML="更新："+pad(d.getUTCHours())+":"+pad(d.getUTCMinutes())+"　取得できたモデル "+ok+"/4"+
+      (ok===0?'<br><span class="err">予報を取得できませんでした。インターネット接続を確認するか、ファイルをダウンロードしてブラウザ（Chrome・Edge・Safari）で開いてください。</span>':"");
+    buildTabs();render();
+  });
+}
+
+function buildTabs(){
+  const any=MODELS.map(m=>S.fc[m.id]).find(x=>x); const tabs=$("tabs"); tabs.innerHTML="";
+  if(!any)return;
+  const days=[...new Set(any.time.map(t=>t.slice(0,10)))];
+  if(!S.day||!days.includes(S.day))S.day=days[0];
+  days.forEach(dy=>{
+    const dt=new Date(dy+"T00:00:00Z");
+    const b=document.createElement("button");
+    b.textContent=(dt.getUTCMonth()+1)+"/"+dt.getUTCDate()+"("+WD[dt.getUTCDay()]+")";
+    if(dy===S.day)b.className="on";
+    b.onclick=()=>{S.day=dy;buildTabs();render();};
+    tabs.appendChild(b);
+  });
+}
+
+function render(){
+  const any=MODELS.map(m=>S.fc[m.id]).find(x=>x); if(!any){$("summary").innerHTML="";$("hourly").innerHTML="";renderAcc();return;}
+  const st=+$("st").value,en=+$("en").value;
+  const rows=[];
+  any.time.forEach((t,i)=>{
+    if(t.slice(0,10)!==S.day)return; const h=+t.slice(11,13); if(h<st||h>en)return;
+    const per={};let wp=0,wt=0,ws=0,wsum=0,wd=null;
+    for(const m of MODELS){
+      const H=S.fc[m.id]; if(!H)continue; const j=H.time.indexOf(t); if(j<0)continue;
+      const p=H.precipitation[j],tt=H.temperature_2m[j],s=H.wind_speed_10m[j];
+      if(p==null||tt==null)continue;
+      per[m.id]={p,t:tt,s,d:H.wind_direction_10m[j]};
+      const w=S.weights[m.id]||0; wp+=w*p;wt+=w*tt;ws+=w*(s||0);wsum+=w;
+      if(m.id==="jma_seamless"||wd==null)wd=H.wind_direction_10m[j];
+    }
+    if(!wsum)return;
+    rows.push({h,per,p:wp/wsum,t:wt/wsum,s:ws/wsum,d:wd});
+  });
+  if(!rows.length){$("summary").innerHTML='<div class="note">この日のこの時間帯の予報はまだありません。</div>';$("hourly").innerHTML="";renderAcc();return;}
+  // summary
+  const total=rows.reduce((a,r)=>a+r.p,0);
+  const rainHours=rows.filter(r=>r.p>=RAIN).length;
+  const tmax=Math.max(...rows.map(r=>r.t)),tmin=Math.min(...rows.map(r=>r.t));
+  const smax=Math.max(...rows.map(r=>r.s));
+  const modelRain=MODELS.filter(m=>S.fc[m.id]).map(m=>({m,tot:rows.reduce((a,r)=>a+(r.per[m.id]?r.per[m.id].p:0),0)}));
+  const wet=modelRain.filter(x=>x.tot>=1).length, nm=modelRain.length;
+  const agree=Math.max(wet,nm-wet)/nm;
+  const tspread=Math.max(...modelRain.map(x=>0))||0;
+  let conf,cls;
+  if(agree===1){conf="高";cls="hi";}else if(agree>=0.75){conf="中";cls="mid";}else{conf="低";cls="lo";}
+  let verdict;
+  if(total<1&&rainHours===0)verdict="雨の心配は小さい";
+  else if(total<3)verdict="降っても小雨程度";
+  else if(total<10)verdict="雨具が必要";
+  else verdict="本降りの雨の可能性";
+  const dt=new Date(S.day+"T00:00:00Z");
+  $("summary").innerHTML=`<h2>${dt.getUTCMonth()+1}月${dt.getUTCDate()}日(${WD[dt.getUTCDay()]}) ${st}時〜${en}時</h2>
+   <div class="big">${verdict}</div>
+   <div style="margin:6px 0 10px">予報の信頼度 <span class="badge ${cls}">${conf}</span>
+   <span class="note">（雨ありと予報したモデル ${wet}/${nm}）</span></div>
+   <div class="kpis">
+    <div class="kpi"><div class="l">合計雨量（総合）</div><div class="v">${f1(total)} mm</div></div>
+    <div class="kpi"><div class="l">雨の時間</div><div class="v">${rainHours} 時間</div></div>
+    <div class="kpi"><div class="l">気温</div><div class="v">${Math.round(tmin)}〜${Math.round(tmax)}℃</div></div>
+    <div class="kpi"><div class="l">最大風速</div><div class="v">${f1(smax)} m/s</div></div>
+   </div>
+   <div class="note" style="margin-top:8px">モデル別の合計雨量：${modelRain.map(x=>x.m.name+" "+f1(x.tot)+"mm").join("　")}</div>`;
+  // hourly
+  let h=`<table><tr><th>時刻</th><th>総合<br>雨mm</th><th>気温</th><th>風</th>${MODELS.map(m=>`<th>${m.name}<br>雨mm</th>`).join("")}</tr>`;
+  for(const r of rows){
+    h+=`<tr><td>${r.h}時</td><td class="${r.p>=RAIN?"r":""}">${f1(r.p)}</td><td>${Math.round(r.t)}℃</td><td>${dirJa(r.d)} ${Math.round(r.s)}m</td>`+
+      MODELS.map(m=>{const x=r.per[m.id];return x?`<td class="${x.p>=RAIN?"r":""}">${f1(x.p)}</td>`:"<td>-</td>";}).join("")+"</tr>";
+  }
+  $("hourly").innerHTML=h+"</table>";
+  renderAcc();
+}
+
+function renderAcc(){
+  if(!S.acc){return;}
+  if(!S.obs||!Object.keys(S.obs).length){
+    $("accBody").innerHTML='<span class="err">アメダスの実測データを取得できなかったため、的中実績は計算できませんでした（総合予報は4モデルの単純平均になります）。</span>';
+    return;
+  }
+  let h=`<div class="note">比較地点：アメダス「${S.station.name}」（ゴルフ場から約${Math.round(S.station.km)}km）／過去8日間の7〜17時</div>
+  <div class="scroll"><table><tr><th>モデル</th><th>雨あり・なしの<br>的中率（前日予報）</th><th>実際の雨を<br>当てた数</th><th>気温の誤差<br>（前日）</th><th>気温の誤差<br>（2日前）</th><th>総合予報での<br>重み</th></tr>`;
+  const best=MODELS.filter(m=>S.acc[m.id][1].n).sort((a,b)=>S.weights[b.id]-S.weights[a.id])[0];
+  for(const m of MODELS){
+    const a=S.acc[m.id][1],b=S.acc[m.id][2],w=S.weights[m.id]||0;
+    h+=`<tr><td>${m.name}${best&&best.id===m.id?" ★":""}</td>
+      <td>${a.hit==null?"-":Math.round(a.hit*100)+"%"}</td>
+      <td>${a.rainObs?a.rainCaught+"/"+a.rainObs+"時間":"雨なし"}</td>
+      <td>${a.tmae==null?"-":"±"+f1(a.tmae)+"℃"}</td>
+      <td>${b.tmae==null?"-":"±"+f1(b.tmae)+"℃"}</td>
+      <td><div class="bar"><i style="width:${Math.round(w*100)}%"></i></div>${Math.round(w*100)}%</td></tr>`;
+  }
+  h+=`</table></div><div class="note" style="margin-top:6px">★は最近このゴルフ場で最も成績が良いモデル。期間中に雨が少ないと、雨の的中率は差が出にくくなります。</div>`;
+  $("accBody").innerHTML=h;
+}
+
+load();
+</script>
+</body>
+</html>
