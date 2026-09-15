@@ -46,11 +46,16 @@ td.r{background:var(--rainbg);color:var(--rain);font-weight:700}
 </head>
 <body>
 <header style="padding-top:calc(14px + env(safe-area-inset-top))">
-  <h1>総武カントリークラブ 北コース ゴルフ天気</h1>
+  <h1 id="title">ゴルフ天気</h1>
   <div class="s">4つの予報モデルを比較・このゴルフ場での実績で重み付け</div>
 </header>
 <main>
   <div class="card set">
+    <div class="row" style="margin-bottom:8px">
+      <label>ゴルフ場
+        <select id="course" style="font-size:16px;padding:4px"></select>
+      </label>
+    </div>
     <div class="row">
       <label>プレー時間
         <select id="st"></select> 〜 <select id="en"></select>
@@ -74,7 +79,12 @@ td.r{background:var(--rainbg);color:var(--rain);font-weight:700}
   </div>
 </main>
 <script>
-const LAT=35.7856, LON=140.1785;
+const COURSES=[
+  {id:"sobu",name:"総武カントリークラブ 北コース",short:"総武CC",lat:35.7856,lon:140.1785},
+  {id:"koshigaya",name:"KOSHIGAYA GOLF CLUB（越谷ゴルフ倶楽部）",short:"越谷GC",lat:35.8895,lon:139.8859}
+];
+let COURSE=COURSES.find(c=>"#"+c.id===location.hash)||COURSES[0];
+let LAT=COURSE.lat, LON=COURSE.lon;
 const MODELS=[
   {id:"jma_seamless",name:"気象庁"},
   {id:"ecmwf_ifs",name:"ヨーロッパ"},
@@ -92,6 +102,12 @@ const WD=["日","月","火","水","木","金","土"];
 function dirJa(deg){if(deg==null)return"";const a=["北","北北東","北東","東北東","東","東南東","南東","南南東","南","南南西","南西","西南西","西","西北西","北西","北北西"];return a[Math.round(deg/22.5)%16];}
 const f1=v=>v==null||isNaN(v)?"-":(Math.round(v*10)/10).toFixed(1);
 
+COURSES.forEach(c=>$("course").add(new Option(c.short,c.id)));
+$("course").value=COURSE.id;
+function applyCourse(){$("title").textContent=COURSE.name;document.title=COURSE.short+" ゴルフ天気";}
+applyCourse();
+$("course").onchange=()=>{COURSE=COURSES.find(c=>c.id===$("course").value);LAT=COURSE.lat;LON=COURSE.lon;
+  history.replaceState(null,"","#"+COURSE.id);applyCourse();load();};
 for(let h=5;h<=18;h++){$("st").add(new Option(h+"時",h));$("en").add(new Option(h+"時",h));}
 $("st").value=7;$("en").value=15;
 $("st").onchange=$("en").onchange=render;
@@ -99,14 +115,14 @@ $("reload").onclick=load;
 
 async function getJSON(url){const r=await fetch(url);if(!r.ok)throw new Error(r.status+" "+url);return r.json();}
 
-async function loadForecast(){
+async function loadForecast(S){
   const base="https://api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+
     "&hourly=temperature_2m,precipitation,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&timezone=Asia%2FTokyo&forecast_days=7&models=";
   await Promise.all(MODELS.map(async m=>{
     try{S.fc[m.id]=(await getJSON(base+m.id)).hourly;}catch(e){S.fc[m.id]=null;}
   }));
 }
-async function loadPrev(){
+async function loadPrev(S){
   const v=["temperature_2m_previous_day1","precipitation_previous_day1","temperature_2m_previous_day2","precipitation_previous_day2"].join(",");
   const base="https://previous-runs-api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+
     "&hourly="+v+"&timezone=Asia%2FTokyo&past_days=9&forecast_days=1&models=";
@@ -114,7 +130,7 @@ async function loadPrev(){
     try{S.prev[m.id]=(await getJSON(base+m.id)).hourly;}catch(e){S.prev[m.id]=null;}
   }));
 }
-async function loadObs(){
+async function loadObs(S){
   const tbl=await getJSON("https://www.jma.go.jp/bosai/amedas/const/amedastable.json");
   let best=null,bd=1e9;
   for(const [code,s] of Object.entries(tbl)){
@@ -178,10 +194,15 @@ function computeAccuracy(){
   S.acc=res; S.weights=w;
 }
 
+let loadSeq=0;
 function load(){
   $("status").textContent="最新の予報を読み込み中…";
+  const my=++loadSeq;
   S={fc:{},prev:{},obs:null,station:null,weights:null,day:S.day};
-  Promise.all([loadForecast(),loadPrev(),loadObs().catch(e=>{S.obsErr=String(e);})]).then(()=>{
+  $("summary").innerHTML='<div class="note">読み込み中…</div>';$("hourly").innerHTML="";$("accBody").textContent="計算中…";
+  const cur=S;const lat=LAT,lon=LON;
+  Promise.all([loadForecast(cur),loadPrev(cur),loadObs(cur).catch(e=>{cur.obsErr=String(e);})]).then(()=>{
+    if(my!==loadSeq||cur!==S)return;
     computeAccuracy();
     const ok=MODELS.filter(m=>S.fc[m.id]).length;
     const d=jstNow();
