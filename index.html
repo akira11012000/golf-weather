@@ -6,161 +6,85 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="天気キャディ">
-<meta name="theme-color" content="#1669d6">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#2f7d4f">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <title>お天気キャディー</title>
 <style>
-:root{--ink:#fff;--sub:rgba(255,255,255,.78);--line:rgba(255,255,255,.22);--glass:rgba(255,255,255,.16);--glass2:rgba(255,255,255,.26);--rain:#bfe0ff;--rainbg:rgba(120,190,255,.32);--ok:#34c77b;--warn:#f5a524;--bad:#ff5f57;--sky1:#1669d6;--sky2:#5fb0f2}
+:root{--bg:#f4f6f3;--card:#fff;--ink:#1d2a22;--sub:#5f6f65;--line:#dfe5e0;--green:#2f7d4f;--rain:#2f6fd6;--rainbg:#e3edfc;--warn:#b5651d;--ok:#2f7d4f;--bad:#c0392b}
+@media (prefers-color-scheme:dark){:root{--bg:#121714;--card:#1b221e;--ink:#e6ece8;--sub:#9aaaa0;--line:#2c3630;--green:#5bbd83;--rain:#7aa7ff;--rainbg:#1d2a40;--warn:#e0a060;--ok:#5bbd83;--bad:#ff7a6b}}
 *{box-sizing:border-box}
-html{background:var(--sky1)}
-body{margin:0;min-height:100vh;color:var(--ink);font-family:-apple-system,"SF Pro Display","Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;font-size:16px;line-height:1.5;
-  background:transparent;-webkit-font-smoothing:antialiased}
-body[data-sky="partly"]{--sky1:#2b6cc4;--sky2:#8db8e0}
-body[data-sky="cloudy"]{--sky1:#56687e;--sky2:#9aa9ba}
-body[data-sky="rain"]{--sky1:#2f3f55;--sky2:#5f7690}
-body[data-sky="storm"]{--sky1:#161f2c;--sky2:#3a4a60}
-a{color:#fff;text-decoration:underline;text-underline-offset:3px}
-/* animated sky layer */
-#sky{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:-1;background:linear-gradient(180deg,var(--sky1) 0%,var(--sky2) 100%)}
-#sky .sun{position:absolute;right:-110px;top:70px;width:260px;height:260px;border-radius:50%;
-  background:radial-gradient(circle,#fff7c2 0%,#ffd84d 35%,rgba(255,216,77,.35) 55%,rgba(255,216,77,0) 72%);opacity:0;transition:opacity 1s;animation:pulse 6s ease-in-out infinite}
-#sky .cl{position:absolute;height:60px;border-radius:60px;background:rgba(255,255,255,.55);filter:blur(2px);opacity:0;transition:opacity 1s;animation:drift linear infinite}
-#sky .cl::before,#sky .cl::after{content:"";position:absolute;background:inherit;border-radius:50%}
-#sky .cl::before{width:60%;height:140%;left:12%;top:-60%}
-#sky .cl::after{width:40%;height:110%;left:48%;top:-40%}
-#sky .c1{width:180px;top:90px;animation-duration:70s}
-#sky .c2{width:130px;top:260px;animation-duration:95s;animation-delay:-40s;transform:scale(.8)}
-#sky .c3{width:220px;top:470px;animation-duration:120s;animation-delay:-80s}
-#sky .rainfx{position:absolute;inset:-100px 0 0 0;opacity:0;transition:opacity 1s;
-  background-image:repeating-linear-gradient(105deg,rgba(255,255,255,0) 0 18px,rgba(255,255,255,.18) 18px 19px,rgba(255,255,255,0) 19px 42px);
-  background-size:84px 84px;animation:rain .45s linear infinite}
-body[data-sky="clear"] #sky .sun{opacity:1}
-body[data-sky="partly"] #sky .sun{opacity:.75}
-body[data-sky="partly"] #sky .cl{opacity:.6}
-body[data-sky="cloudy"] #sky .cl{opacity:.45}
-body[data-sky="rain"] #sky .cl,body[data-sky="storm"] #sky .cl{opacity:.18}
-body[data-sky="rain"] #sky .rainfx{opacity:.8}
-body[data-sky="storm"] #sky .rainfx{opacity:1}
-@keyframes drift{from{left:-260px}to{left:110%}}
-@keyframes rain{to{background-position:-20px 84px}}
-@keyframes pulse{50%{transform:scale(1.06)}}
-@media (prefers-reduced-motion:reduce){#sky *{animation:none!important}}
-/* layout */
-.wrap{max-width:720px;margin:0 auto;padding:calc(10px + env(safe-area-inset-top)) 16px 48px}
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
-.brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;letter-spacing:.04em}
-.brand img{width:28px;height:28px;border-radius:7px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
-.iconbtn{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--glass);color:#fff;font-size:20px;cursor:pointer;
-  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);display:grid;place-items:center}
-.iconbtn.spin{animation:spin 1s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.seg{display:flex;background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:3px;gap:3px;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
-.seg button{flex:1;border:0;background:transparent;color:#fff;font-size:15px;font-weight:600;padding:8px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
-.seg button.on{background:#fff;color:#1b3552;box-shadow:0 2px 10px rgba(0,0,0,.15)}
-/* hero */
-.hero{text-align:center;padding:14px 0 6px}
-.hero .course{font-size:15px;color:var(--sub)}
-.hero .date{font-size:15px;font-weight:600;margin-top:2px}
-.hero .icon{width:132px;height:132px;margin:4px auto 0;filter:drop-shadow(0 8px 18px rgba(0,0,0,.18))}
-.hero .temp{font-size:76px;font-weight:200;line-height:1;letter-spacing:-2px;margin-top:2px}
-.hero .temp small{font-size:26px;font-weight:300;letter-spacing:0;color:var(--sub)}
-.hero .verdict{font-size:26px;font-weight:700;margin-top:6px;text-shadow:0 2px 12px rgba(0,0,0,.15)}
-.hero .conf{display:inline-flex;align-items:center;gap:8px;margin-top:8px;font-size:14px;color:var(--sub)}
-.badge{display:inline-block;padding:3px 12px;border-radius:999px;font-weight:700;color:#fff;font-size:14px}
-.hi{background:var(--ok)}.mid{background:var(--warn)}.lo{background:var(--bad)}
-.chips{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:16px 0 4px}
-.chip{background:var(--glass);border:1px solid var(--line);border-radius:18px;padding:10px 4px;text-align:center;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
-.chip .l{font-size:11px;color:var(--sub);letter-spacing:.05em}
-.chip .v{font-size:20px;font-weight:700;line-height:1.3}
-.chip .v small{font-size:12px;font-weight:500}
-.modelline{font-size:12px;color:var(--sub);text-align:center;margin-top:6px}
-/* controls row */
-.ctrl{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:14px 0 8px}
-.ctrl label{font-size:13px;color:var(--sub)}
-select{appearance:none;-webkit-appearance:none;background:var(--glass);color:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 26px 6px 12px;font-size:15px;font-weight:600;
-  background-image:linear-gradient(45deg,transparent 50%,#fff 50%),linear-gradient(135deg,#fff 50%,transparent 50%);background-position:calc(100% - 14px) 55%,calc(100% - 9px) 55%;background-size:5px 5px;background-repeat:no-repeat}
-select option{color:#1b2733}
-#status{font-size:12px;color:var(--sub);text-align:center;margin:4px 0}
-.tabs{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
-.tabs button{flex:0 0 auto;border:1px solid var(--line);background:var(--glass);color:#fff;border-radius:16px;padding:6px 12px;font-size:14px;cursor:pointer;line-height:1.25;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
-.tabs button b{display:block;font-size:16px}
-.tabs button.on{background:#fff;color:#1b3552;border-color:#fff}
-/* glass cards */
-.card{background:var(--glass);border:1px solid var(--line);border-radius:24px;padding:16px;margin:14px 0;
-  -webkit-backdrop-filter:blur(18px) saturate(1.2);backdrop-filter:blur(18px) saturate(1.2);box-shadow:0 8px 30px rgba(0,0,0,.08)}
-h2{font-size:12px;margin:0 0 10px;color:var(--sub);font-weight:700;letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:6px}
-h2::before{content:"";width:6px;height:6px;border-radius:50%;background:#fff;opacity:.8}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,"Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;font-size:16px;line-height:1.5}
+header{background:var(--green);color:#fff;padding:14px 16px}
+header h1{margin:0;font-size:20px}
+header .s{font-size:13px;opacity:.9}
+main{max-width:760px;margin:0 auto;padding:12px 16px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
+h2{font-size:17px;margin:0 0 8px}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+.tabs button{flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:8px 10px;font-size:15px;cursor:pointer}
+.tabs button.on{background:var(--green);color:#fff;border-color:var(--green)}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.note{font-size:13px;color:var(--sub)}
-.err{color:#ffd0cc;font-weight:600}
-.scroll{overflow-x:auto}
+.set label{font-size:14px;color:var(--sub)}
+.set select{font-size:16px;padding:4px}
+.big{font-size:28px;font-weight:700}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.kpi{border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.kpi .l{font-size:13px;color:var(--sub)}
+.kpi .v{font-size:22px;font-weight:700}
+.badge{display:inline-block;padding:4px 12px;border-radius:999px;font-weight:700;color:#fff}
+.hi{background:var(--ok)}.mid{background:var(--warn)}.lo{background:var(--bad)}
 table{width:100%;border-collapse:collapse;font-size:14px}
-th,td{padding:7px 5px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
-tr:last-child td{border-bottom:0}
-th{color:var(--sub);font-weight:600;font-size:11px}
-td.r{background:var(--rainbg);color:#fff;font-weight:700}
-.bar{height:6px;background:var(--line);border-radius:4px;overflow:hidden;min-width:50px}
-.bar i{display:block;height:100%;background:#fff}
-/* hourly strip */
-.strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity}
-.hr{flex:0 0 62px;text-align:center;border-radius:18px;padding:8px 2px;scroll-snap-align:start;position:relative}
-.hr.wet{background:rgba(120,190,255,.22)}
-.hr .t{font-size:13px;color:var(--sub);font-weight:600}
-.hr svg{width:34px;height:34px;margin:4px auto;display:block}
-.hr .tp{font-size:18px;font-weight:600}
-.hr .p{font-size:12px;color:var(--rain);font-weight:700;min-height:18px}
-.hr .w{font-size:11px;color:var(--sub)}
-.hr .pb{height:28px;display:flex;align-items:flex-end;justify-content:center}
-.hr .pb i{display:block;width:10px;border-radius:5px 5px 2px 2px;background:linear-gradient(#e2f1ff,#7fbfff)}
-details{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
-summary{cursor:pointer;font-size:14px;font-weight:600;list-style:none}
-summary::-webkit-details-marker{display:none}
-summary::after{content:" ＋";color:var(--sub)}
-details[open] summary::after{content:" －"}
-/* map */
-#map{height:340px;border-radius:18px;margin:10px 0;z-index:0;border:1px solid var(--line)}
-.hbtn{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
-.hbtn button{border:1px solid var(--line);background:var(--glass);color:#fff;border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;cursor:pointer}
-.hbtn button.on{background:#fff;color:#1b3552}
+th,td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+th{color:var(--sub);font-weight:600;font-size:12px}
+td.r{background:var(--rainbg);color:var(--rain);font-weight:700}
+.scroll{overflow-x:auto}
+.note{font-size:13px;color:var(--sub)}
+.err{color:var(--bad)}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--green)}
+#map{height:340px;border-radius:10px;border:1px solid var(--line);margin:8px 0;z-index:0}
+.hbtn{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.hbtn button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 10px;font-size:15px;cursor:pointer}
+.hbtn button.on{background:var(--rain);color:#fff;border-color:var(--rain)}
 .legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:var(--sub)}
-.legend i{display:inline-block;width:14px;height:10px;margin-right:3px;vertical-align:middle;border-radius:2px}
-#rtime{font-size:20px;font-weight:700}
-input[type=range]{width:100%;accent-color:#fff}
-.leaflet-container{font-family:inherit}
-/* sources */
-.src{background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:16px;padding:12px;margin:10px 0}
-.src h3{margin:0 0 2px;font-size:17px}
-.src .org{font-size:12px;color:var(--sub);margin-bottom:8px}
-.src dl{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin:0;font-size:14px}
+.legend i{display:inline-block;width:14px;height:10px;margin-right:3px;vertical-align:middle;border:1px solid #0002}
+#rtime{font-size:18px;font-weight:700}
+input[type=range]{width:100%}
+.src{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0}
+.src h3{margin:0 0 4px;font-size:16px}
+.src .org{font-size:13px;color:var(--sub);margin-bottom:6px}
+.src dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:0;font-size:14px}
 .src dt{color:var(--sub)}.src dd{margin:0}
-.src .good{font-size:14px;margin-top:8px;padding:6px 10px;border-radius:10px;background:rgba(255,255,255,.1)}
-.foot{text-align:center;font-size:12px;color:var(--sub);margin-top:18px}
+.src .good{font-size:14px;margin-top:6px}
 </style>
 </head>
 <body>
-<div id="sky"><div class="sun"></div><div class="cl c1"></div><div class="cl c2"></div><div class="cl c3"></div><div class="rainfx"></div></div>
-<main class="wrap">
-  <div class="topbar">
-    <div class="brand"><img src="apple-touch-icon.png" alt="">お天気キャディー</div>
-    <button id="reload" class="iconbtn" aria-label="最新に更新">↻</button>
+<header style="padding-top:calc(14px + env(safe-area-inset-top))">
+  <div style="display:flex;align-items:center;gap:10px"><img src="apple-touch-icon.png" alt="" width="40" height="40" style="border-radius:9px;flex:0 0 auto"><div><div style="font-size:22px;font-weight:700;line-height:1.2">お天気キャディー</div>
+  <div id="title" style="font-size:15px;opacity:.95">&nbsp;</div></div></div>
+  <div class="s">4つの予報を比べて、このゴルフ場で当たる予報を選びます</div>
+</header>
+<main>
+  <div class="card set">
+    <div class="row" style="margin-bottom:8px">
+      <label>ゴルフ場
+        <select id="course" style="font-size:16px;padding:4px"></select>
+      </label>
+    </div>
+    <div class="row">
+      <label>プレー時間
+        <select id="st"></select> 〜 <select id="en"></select>
+      </label>
+      <button id="reload" style="font-size:15px;padding:6px 12px">最新に更新</button>
+    </div>
+    <div id="status" class="note">読み込み中…</div>
   </div>
-  <div class="seg" id="courseSeg"></div>
-  <select id="course" hidden></select>
-
-  <section class="hero" id="summary"><div class="note" style="padding:60px 0">読み込み中…</div></section>
 
   <div class="tabs" id="tabs"></div>
-  <div class="ctrl">
-    <label>プレー時間 <select id="st"></select> 〜 <select id="en"></select></label>
-  </div>
-  <div id="status">読み込み中…</div>
-  <span id="title" hidden></span>
-  <div class="card"><h2>1時間ごとの予報</h2><div class="strip" id="strip"></div>
-    <details><summary>4つの予報の雨量を比べる</summary><div class="scroll" id="hourly" style="margin-top:8px"></div></details>
-    <div class="note" id="wnote" style="margin-top:6px"></div></div>
+  <div class="card" id="summary"></div>
+  <div class="card"><h2>1時間ごとの予報</h2><div class="scroll" id="hourly"></div>
+    <div class="note" id="wnote">「総合」は下の実績で重み付けした平均です。青いマスは雨（1時間0.3mm以上）。</div></div>
   <div class="card" id="rec"><h2>的中の記録（毎日自動で記録）</h2>
     <div class="row" style="margin-bottom:6px">
       <label class="note">期間 <select id="recPeriod" style="font-size:15px"><option value="30">30日</option><option value="90">90日</option><option value="0">全期間</option></select></label>
@@ -278,14 +202,10 @@ const f1=v=>v==null||isNaN(v)?"-":(Math.round(v*10)/10).toFixed(1);
 
 COURSES.forEach(c=>$("course").add(new Option(c.short,c.id)));
 $("course").value=COURSE.id;
-COURSES.forEach(c=>{const b=document.createElement("button");b.textContent=c.short;b.dataset.id=c.id;
-  b.onclick=()=>{if($("course").value===c.id)return;$("course").value=c.id;$("course").onchange();};$("courseSeg").appendChild(b);});
-function syncSeg(){document.querySelectorAll("#courseSeg button").forEach(b=>b.classList.toggle("on",b.dataset.id===COURSE.id));}
-syncSeg();
 function applyCourse(){$("title").textContent=COURSE.name;document.title="お天気キャディー｜"+COURSE.short;}
 applyCourse();
 $("course").onchange=()=>{COURSE=COURSES.find(c=>c.id===$("course").value);LAT=COURSE.lat;LON=COURSE.lon;
-  history.replaceState(null,"","#"+COURSE.id);applyCourse();syncSeg();load();loadRadar();};
+  history.replaceState(null,"","#"+COURSE.id);applyCourse();load();loadRadar();};
 for(let h=5;h<=18;h++){$("st").add(new Option(h+"時",h));$("en").add(new Option(h+"時",h));}
 $("st").value=7;$("en").value=15;
 $("st").onchange=$("en").onchange=render;
@@ -295,7 +215,7 @@ async function getJSON(url){const r=await fetch(url);if(!r.ok)throw new Error(r.
 
 async function loadForecast(S){
   const base="https://api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+
-    "&hourly=temperature_2m,precipitation,wind_speed_10m,wind_direction_10m,cloud_cover&wind_speed_unit=ms&timezone=Asia%2FTokyo&forecast_days=7&models=";
+    "&hourly=temperature_2m,precipitation,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&timezone=Asia%2FTokyo&forecast_days=7&models=";
   await Promise.all(MODELS.map(async m=>{
     try{S.fc[m.id]=(await getJSON(base+m.id)).hourly;}catch(e){S.fc[m.id]=null;}
   }));
@@ -383,14 +303,13 @@ function computeAccuracy(){
 
 let loadSeq=0;
 function load(){
-  $("status").textContent="最新の予報を読み込み中…";$("reload").classList.add("spin");
+  $("status").textContent="最新の予報を読み込み中…";
   const my=++loadSeq;
   S={fc:{},prev:{},obs:null,station:null,weights:null,day:S.day};
-  $("summary").innerHTML='<div class="note" style="padding:60px 0">読み込み中…</div>';$("hourly").innerHTML="";$("strip").innerHTML="";$("accBody").textContent="計算中…";
+  $("summary").innerHTML='<div class="note">読み込み中…</div>';$("hourly").innerHTML="";$("accBody").textContent="計算中…";
   const cur=S;const lat=LAT,lon=LON;
   Promise.all([loadRecords(),loadForecast(cur),loadPrev(cur),loadObs(cur).catch(e=>{cur.obsErr=String(e);})]).then(()=>{
     if(my!==loadSeq||cur!==S)return;
-    $("reload").classList.remove("spin");
     computeAccuracy();
     const ok=MODELS.filter(m=>S.fc[m.id]).length;
     const d=jstNow();
@@ -408,8 +327,7 @@ function buildTabs(){
   days.forEach(dy=>{
     const dt=new Date(dy+"T00:00:00Z");
     const b=document.createElement("button");
-    const ti=days.indexOf(dy);
-    b.innerHTML=(ti===0?"今日":ti===1?"明日":WD[dt.getUTCDay()]+"曜")+"<b>"+(dt.getUTCMonth()+1)+"/"+dt.getUTCDate()+"</b>";
+    b.textContent=(dt.getUTCMonth()+1)+"/"+dt.getUTCDate()+"("+WD[dt.getUTCDay()]+")";
     if(dy===S.day)b.className="on";
     b.onclick=()=>{S.day=dy;buildTabs();render();};
     tabs.appendChild(b);
@@ -422,21 +340,19 @@ function render(){
   const rows=[];
   any.time.forEach((t,i)=>{
     if(t.slice(0,10)!==S.day)return; const h=+t.slice(11,13); if(h<st||h>en)return;
-    const per={};let wp=0,wt=0,ws=0,wsum=0,wd=null,wc=0,wcs=0;
+    const per={};let wp=0,wt=0,ws=0,wsum=0,wd=null;
     for(const m of MODELS){
       const H=S.fc[m.id]; if(!H)continue; const j=H.time.indexOf(t); if(j<0)continue;
       const p=H.precipitation[j],tt=H.temperature_2m[j],s=H.wind_speed_10m[j];
       if(p==null||tt==null)continue;
-      const cc=H.cloud_cover?H.cloud_cover[j]:null;
       per[m.id]={p,t:tt,s,d:H.wind_direction_10m[j]};
       const w=S.weights[m.id]||0; wp+=w*p;wt+=w*tt;ws+=w*(s||0);wsum+=w;
-      if(cc!=null){wc+=w*cc;wcs+=w;}
       if(m.id==="jma_seamless"||wd==null)wd=H.wind_direction_10m[j];
     }
     if(!wsum)return;
-    rows.push({h,per,p:wp/wsum,t:wt/wsum,s:ws/wsum,d:wd,c:wcs?wc/wcs:null});
+    rows.push({h,per,p:wp/wsum,t:wt/wsum,s:ws/wsum,d:wd});
   });
-  if(!rows.length){$("summary").innerHTML='<div class="note" style="padding:60px 0">この日のこの時間帯の予報はまだありません。</div>';$("hourly").innerHTML="";$("strip").innerHTML="";renderAcc();return;}
+  if(!rows.length){$("summary").innerHTML='<div class="note">この日のこの時間帯の予報はまだありません。</div>';$("hourly").innerHTML="";renderAcc();return;}
   // summary
   const total=rows.reduce((a,r)=>a+r.p,0);
   const rainHours=rows.filter(r=>r.p>=RAIN).length;
@@ -454,30 +370,17 @@ function render(){
   else if(total<10)verdict="雨具が必要";
   else verdict="本降りの雨の可能性";
   const dt=new Date(S.day+"T00:00:00Z");
-  const cl=rows.filter(r=>r.c!=null), cavg=cl.length?cl.reduce((a,r)=>a+r.c,0)/cl.length:0;
-  const sky=skyKind(total,rainHours,cavg);
-  document.body.dataset.sky=sky; document.documentElement.style.background={clear:"#1669d6",partly:"#2b6cc4",cloudy:"#56687e",rain:"#2f3f55",storm:"#161f2c"}[sky];
-  const tc=document.querySelector('meta[name="theme-color"]'); if(tc)tc.content={clear:"#1669d6",partly:"#2b6cc4",cloudy:"#56687e",rain:"#2f3f55",storm:"#161f2c"}[sky];
-  const tavg=rows.reduce((a,r)=>a+r.t,0)/rows.length;
-  $("summary").innerHTML=`<div class="course">${COURSE.name}</div>
-   <div class="date">${dt.getUTCMonth()+1}月${dt.getUTCDate()}日(${WD[dt.getUTCDay()]})　${st}時〜${en}時</div>
-   <div class="icon">${wIcon(sky)}</div>
-   <div class="temp">${Math.round(tavg)}°<small> ${Math.round(tmin)}〜${Math.round(tmax)}°</small></div>
-   <div class="verdict">${verdict}</div>
-   <div class="conf">予報の信頼度 <span class="badge ${cls}">${conf}</span> 雨ありと予報 ${wet}/${nm}</div>
-   <div class="chips">
-    <div class="chip"><div class="l">雨量</div><div class="v">${f1(total)}<small>mm</small></div></div>
-    <div class="chip"><div class="l">雨の時間</div><div class="v">${rainHours}<small>時間</small></div></div>
-    <div class="chip"><div class="l">最大風速</div><div class="v">${f1(smax)}<small>m/s</small></div></div>
-    <div class="chip"><div class="l">雲の量</div><div class="v">${Math.round(cavg)}<small>%</small></div></div>
+  $("summary").innerHTML=`<h2>${dt.getUTCMonth()+1}月${dt.getUTCDate()}日(${WD[dt.getUTCDay()]}) ${st}時〜${en}時</h2>
+   <div class="big">${verdict}</div>
+   <div style="margin:6px 0 10px">予報の信頼度 <span class="badge ${cls}">${conf}</span>
+   <span class="note">（雨ありと予報したモデル ${wet}/${nm}）</span></div>
+   <div class="kpis">
+    <div class="kpi"><div class="l">合計雨量（総合）</div><div class="v">${f1(total)} mm</div></div>
+    <div class="kpi"><div class="l">雨の時間</div><div class="v">${rainHours} 時間</div></div>
+    <div class="kpi"><div class="l">気温</div><div class="v">${Math.round(tmin)}〜${Math.round(tmax)}℃</div></div>
+    <div class="kpi"><div class="l">最大風速</div><div class="v">${f1(smax)} m/s</div></div>
    </div>
-   <div class="modelline">${modelRain.map(x=>x.m.name+" "+f1(x.tot)+"mm").join("　·　")}</div>`;
-  // strip
-  const pmax=Math.max(2,...rows.map(r=>r.p));
-  $("strip").innerHTML=rows.map(r=>{const k=skyKind(r.p,r.p>=RAIN?1:0,r.c==null?0:r.c,true);
-    return `<div class="hr ${r.p>=RAIN?"wet":""}"><div class="t">${r.h}時</div>${wIcon(k)}<div class="tp">${Math.round(r.t)}°</div>
-    <div class="pb"><i style="height:${r.p>=0.1?Math.max(3,Math.round(28*r.p/pmax)):0}px"></i></div>
-    <div class="p">${r.p>=0.1?f1(r.p)+"mm":""}</div><div class="w">${dirJa(r.d)} ${Math.round(r.s)}m</div></div>`;}).join("");
+   <div class="note" style="margin-top:8px">モデル別の合計雨量：${modelRain.map(x=>x.m.name+" "+f1(x.tot)+"mm").join("　")}</div>`;
   // hourly
   let h=`<table><tr><th>時刻</th><th>総合<br>雨mm</th><th>気温</th><th>風</th>${MODELS.map(m=>`<th>${m.name}<br>雨mm</th>`).join("")}</tr>`;
   for(const r of rows){
@@ -485,28 +388,8 @@ function render(){
       MODELS.map(m=>{const x=r.per[m.id];return x?`<td class="${x.p>=RAIN?"r":""}">${f1(x.p)}</td>`:"<td>-</td>";}).join("")+"</tr>";
   }
   $("hourly").innerHTML=h+"</table>";
-  $("wnote").innerHTML=(S.weightSrc==="rec"?"「総合」は<b>30日分の記録</b>で重み付けした平均です。":"「総合」は直近8日の実績で重み付けした平均です。")+"水色の時間帯と表の青いマスは雨（1時間0.3mm以上）。";
+  $("wnote").innerHTML=(S.weightSrc==="rec"?"「総合」は<b>30日分の記録</b>で重み付けした平均です。":"「総合」は直近8日の実績で重み付けした平均です。")+"青いマスは雨（1時間0.3mm以上）。";
   renderAcc();
-}
-
-// ===== 天気アイコン =====
-function skyKind(total,rainH,cloud,hourly){
-  if(hourly){ if(total>=5)return"storm"; if(total>=RAIN)return"rain"; }
-  else{ if(total>=10)return"storm"; if(total>=1||rainH>0)return"rain"; }
-  if(cloud>=75)return"cloudy"; if(cloud>=35)return"partly"; return"clear";
-}
-function wIcon(k){
-  const sun=(cx,cy,r)=>`<g>${[...Array(8)].map((_,i)=>{const a=i*Math.PI/4;return `<line x1="${cx+Math.cos(a)*(r+6)}" y1="${cy+Math.sin(a)*(r+6)}" x2="${cx+Math.cos(a)*(r+13)}" y2="${cy+Math.sin(a)*(r+13)}" stroke="#ffd23f" stroke-width="5" stroke-linecap="round"/>`}).join("")}<circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#gs)"/></g>`;
-  const cloud=(x,y,sc,fill)=>`<g transform="translate(${x} ${y}) scale(${sc})" fill="${fill}"><circle cx="30" cy="30" r="18"/><circle cx="52" cy="22" r="24"/><circle cx="74" cy="32" r="16"/><rect x="12" y="30" width="80" height="22" rx="11"/></g>`;
-  const drops=(n,col)=>[...Array(n)].map((_,i)=>`<line x1="${38+i*16}" y1="80" x2="${32+i*16}" y2="96" stroke="${col}" stroke-width="5" stroke-linecap="round"/>`).join("");
-  const defs=`<defs><radialGradient id="gs"><stop offset="0" stop-color="#fff6b0"/><stop offset=".6" stop-color="#ffd23f"/><stop offset="1" stop-color="#ffb000"/></radialGradient></defs>`;
-  let b="";
-  if(k==="clear")b=sun(60,60,26);
-  else if(k==="partly")b=sun(44,42,20)+cloud(18,40,.95,"#fff");
-  else if(k==="cloudy")b=cloud(30,18,.8,"#dfe6ee")+cloud(8,36,1,"#fff");
-  else if(k==="rain")b=cloud(10,16,1,"#eef3f8")+drops(4,"#9fd3ff");
-  else b=cloud(10,16,1,"#c9d2dc")+drops(4,"#7fc1ff")+`<path d="M62 70 L50 92 H60 L54 112 L74 84 H63 L70 70Z" fill="#ffd23f"/>`;
-  return `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">${defs}${b}</svg>`;
 }
 
 // ===== 的中の記録（data/records.json） =====
@@ -622,7 +505,7 @@ function buildGrid(){
     const rect=L.rectangle([[la-DLAT/2,lo-DLON/2],[la+DLAT/2,lo+DLON/2]],{stroke:false,fillOpacity:0,interactive:false}).addTo(R.map);
     R.cells.push({la,lo,rect});
   }
-  R.marker=L.circleMarker([LAT,LON],{radius:8,color:"#fff",weight:3,fillColor:"#1669d6",fillOpacity:1}).addTo(R.map).bindTooltip(COURSE.short,{permanent:true,direction:"top",offset:[0,-8]});
+  R.marker=L.circleMarker([LAT,LON],{radius:8,color:"#fff",weight:3,fillColor:"#2f7d4f",fillOpacity:1}).addTo(R.map).bindTooltip(COURSE.short,{permanent:true,direction:"top",offset:[0,-8]});
   R.map.fitBounds([[LAT-half*DLAT,LON-half*DLON],[LAT+half*DLAT,LON+half*DLON]]);
 }
 async function loadRadar(){
