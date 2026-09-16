@@ -21,7 +21,8 @@ iPhoneでは、Safariで開いて共有ボタン →「ホーム画面に追加�
 - **総合予報**：このゴルフ場でよく当たっている予報ほど重みを大きくして、平均した予報を出します。
 - **的中の記録**：毎日自動で、各予報（前日・2日前・3日前に出されたもの）とアメダスの実測を比べて記録します。期間別の的中率、雨の見逃し・空振り、気温の誤差、日別の記録を表示します。
 - **雨雲の動き**：ゴルフ場の周り約100km四方の雨雲の予報を、今から24時間後まで地図で表示します。
-- **2コースの切り替え**：総武カントリークラブ 北コースと、KOSHIGAYA GOLF CLUBを切り替えられます。
+- **ゴルフ場の切り替え**：総武カントリークラブ 北コースと、KOSHIGAYA GOLF CLUBを切り替えられます。
+- **ゴルフ場の追加**：「＋ ゴルフ場を追加」から名前や住所で検索して、好きなゴルフ場を追加できます。追加したゴルフ場はその端末（ブラウザ）の中だけに保存され、毎日の自動記録の対象外です。
 
 ## ファイル構成
 
@@ -48,6 +49,7 @@ iPhoneでは、Safariで開いて共有ボタン →「ホーム画面に追加�
 - **予報データ**：[Open-Meteo](https://open-meteo.com/)（[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)）
   - 元データ：気象庁、ヨーロッパ中期予報センター（ECMWF）、アメリカ海洋大気庁（NOAA/NCEP）、ドイツ気象局（DWD）
 - **実測データ**：[気象庁 アメダス](https://www.jma.go.jp/bosai/amedas/)（出典：気象庁ホームページ）
+- **ゴルフ場の検索**：[OpenStreetMap Nominatim](https://nominatim.openstreetmap.org/)（© OpenStreetMap contributors, ODbL）、[国土地理院 住所検索](https://msearch.gsi.go.jp/)
 - **地図**：[地理院タイル（国土地理院）](https://maps.gsi.go.jp/development/ichiran.html)
 - **地図表示**：[Leaflet](https://leafletjs.com/)（BSD 2-Clause License）
 
