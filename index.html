@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="ゴルフ天気">
 <meta name="theme-color" content="#2f7d4f">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <title>総武CC ゴルフ天気</title>
 <style>
 :root{--bg:#f4f6f3;--card:#fff;--ink:#1d2a22;--sub:#5f6f65;--line:#dfe5e0;--green:#2f7d4f;--rain:#2f6fd6;--rainbg:#e3edfc;--warn:#b5651d;--ok:#2f7d4f;--bad:#c0392b}
@@ -42,6 +43,20 @@ td.r{background:var(--rainbg);color:var(--rain);font-weight:700}
 .err{color:var(--bad)}
 .bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--green)}
+#map{height:340px;border-radius:10px;border:1px solid var(--line);margin:8px 0;z-index:0}
+.hbtn{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.hbtn button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 10px;font-size:15px;cursor:pointer}
+.hbtn button.on{background:var(--rain);color:#fff;border-color:var(--rain)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:var(--sub)}
+.legend i{display:inline-block;width:14px;height:10px;margin-right:3px;vertical-align:middle;border:1px solid #0002}
+#rtime{font-size:18px;font-weight:700}
+input[type=range]{width:100%}
+.src{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0}
+.src h3{margin:0 0 4px;font-size:16px}
+.src .org{font-size:13px;color:var(--sub);margin-bottom:6px}
+.src dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:0;font-size:14px}
+.src dt{color:var(--sub)}.src dd{margin:0}
+.src .good{font-size:14px;margin-top:6px}
 </style>
 </head>
 <body>
@@ -68,9 +83,90 @@ td.r{background:var(--rainbg);color:var(--rain);font-weight:700}
   <div class="tabs" id="tabs"></div>
 
   <div class="card" id="summary"></div>
+  <div class="card">
+    <h2>雨雲の動き（予報）</h2>
+    <div class="row" style="justify-content:space-between">
+      <div id="rtime">-</div>
+      <label class="note">モデル <select id="rmodel" style="font-size:15px"></select></label>
+    </div>
+    <div class="hbtn" id="rbtns"></div>
+    <input type="range" id="rslider" min="0" max="24" value="0">
+    <div id="map"></div>
+    <div id="rinfo" class="note"></div>
+    <div class="legend" id="rlegend"></div>
+    <div class="note" style="margin-top:6px">ゴルフ場の周り約100km四方を約10kmごとに計算した予報です（実際のレーダーではありません）。
+      今この瞬間の雨雲は <a href="https://www.jma.go.jp/bosai/nowc/" target="_blank" rel="noopener">気象庁「雨雲の動き」</a>、
+      15時間先までは <a href="https://www.jma.go.jp/bosai/kaikotan/" target="_blank" rel="noopener">気象庁「今後の雨」</a> で確認できます。</div>
+  </div>
   <div class="card"><h2>1時間ごとの予報</h2><div class="scroll" id="hourly"></div>
-    <div class="note">「総合」は下の実績で重み付けした平均です。青いマスは雨（1時間0.3mm以上）。</div></div>
-  <div class="card" id="acc"><h2>このゴルフ場での的中実績</h2><div id="accBody" class="note">計算中…</div></div>
+    <div class="note" id="wnote">「総合」は下の実績で重み付けした平均です。青いマスは雨（1時間0.3mm以上）。</div></div>
+  <div class="card" id="rec"><h2>的中の記録（毎日自動で記録）</h2>
+    <div class="row" style="margin-bottom:6px">
+      <label class="note">期間 <select id="recPeriod" style="font-size:15px"><option value="30">30日</option><option value="90">90日</option><option value="0">全期間</option></select></label>
+      <label class="note">予報のタイミング <select id="recLead" style="font-size:15px"><option value="1">前日</option><option value="2">2日前</option><option value="3">3日前</option></select></label>
+    </div>
+    <div id="recBody" class="note">記録を読み込み中…</div></div>
+  <div class="card" id="acc"><h2>直近8日の的中実績（その場で計算）</h2><div id="accBody" class="note">計算中…</div></div>
+  <div class="card" id="sources">
+    <h2>予報データの情報ソース</h2>
+    <div class="note">4つの予報はすべて、無料の気象データサービス <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo（スイス）</a> 経由で取得しています。Open-Meteoは各国の気象機関が公開した計算結果を配信しているだけで、予報の中身は下の各機関のものです。</div>
+
+    <div class="src">
+      <h3>気象庁</h3>
+      <div class="org">気象庁（日本）</div>
+      <dl>
+        <dt>モデル</dt><dd>メソモデル（MSM）と全球モデル（GSM）の組み合わせ<br><span class="note">近い日は細かいMSM、先の日はGSMを使用</span></dd>
+        <dt>細かさ</dt><dd>約5km（MSM）</dd>
+        <dt>更新</dt><dd>1日8回（MSM）</dd>
+      </dl>
+      <div class="good">得意：日本の地形を反映した、明日・明後日の局地的な雨</div>
+      <div class="note"><a href="https://www.jma.go.jp/" target="_blank" rel="noopener">jma.go.jp</a></div>
+    </div>
+
+    <div class="src">
+      <h3>ヨーロッパ</h3>
+      <div class="org">ヨーロッパ中期予報センター（ECMWF、本部イギリス）</div>
+      <dl>
+        <dt>モデル</dt><dd>IFS（統合予報システム）</dd>
+        <dt>細かさ</dt><dd>約9km</dd>
+        <dt>更新</dt><dd>1日4回</dd>
+      </dl>
+      <div class="good">得意：台風の進路、数日〜1週間先の傾向。世界全体の精度は最高水準と評価されることが多い</div>
+      <div class="note"><a href="https://www.ecmwf.int/" target="_blank" rel="noopener">ecmwf.int</a></div>
+    </div>
+
+    <div class="src">
+      <h3>アメリカ</h3>
+      <div class="org">アメリカ海洋大気庁（NOAA）の環境予測センター（NCEP）</div>
+      <dl>
+        <dt>モデル</dt><dd>GFS（全球予報システム）</dd>
+        <dt>細かさ</dt><dd>日本付近で約13〜25km</dd>
+        <dt>更新</dt><dd>1日4回</dd>
+      </dl>
+      <div class="good">特徴：データが無料で使いやすく、海外製の天気アプリで広く使われる。日本の局地的な雨はやや苦手</div>
+      <div class="note"><a href="https://www.ncei.noaa.gov/products/weather-climate-models/global-forecast" target="_blank" rel="noopener">noaa.gov（GFS）</a></div>
+    </div>
+
+    <div class="src">
+      <h3>ドイツ</h3>
+      <div class="org">ドイツ気象局（DWD）</div>
+      <dl>
+        <dt>モデル</dt><dd>ICON（全球モデル）</dd>
+        <dt>細かさ</dt><dd>日本付近で約13km<br><span class="note">より細かい版はヨーロッパ地域のみ</span></dd>
+        <dt>更新</dt><dd>1日4回</dd>
+      </dl>
+      <div class="good">特徴：ヨーロッパの予報に強い。日本では4つを比べる際の「もう一つの意見」として役立つ</div>
+      <div class="note"><a href="https://www.dwd.de/" target="_blank" rel="noopener">dwd.de</a></div>
+    </div>
+
+    <div class="src">
+      <h3>実測（的中の判定に使用）</h3>
+      <div class="org">気象庁 アメダス</div>
+      <div style="font-size:14px">ゴルフ場に最も近い観測所の、1時間ごとの雨量と気温を使っています。</div>
+      <div class="note"><a href="https://www.jma.go.jp/bosai/amedas/" target="_blank" rel="noopener">jma.go.jp/bosai/amedas</a></div>
+    </div>
+    <div class="note">※細かさや更新回数はおおよその値で、各機関の改良によって変わることがあります。どのモデルがこのゴルフ場で当たるかは、上の「的中の記録」で確かめてください。</div>
+  </div>
   <div class="card note">
     <b>見かた</b><br>
     ・<b>信頼度</b>：4つのモデルの予報がそろっているほど高くなります。「低」のときは前日夜にもう一度確認してください。<br>
@@ -78,6 +174,7 @@ td.r{background:var(--rainbg);color:var(--rain);font-weight:700}
     ・データ：Open-Meteo（予報）、気象庁アメダス（実測）。台風の進路は気象庁の台風情報もあわせて確認してください。
   </div>
 </main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 const COURSES=[
   {id:"sobu",name:"総武カントリークラブ 北コース",short:"総武CC",lat:35.7856,lon:140.1785},
@@ -107,7 +204,7 @@ $("course").value=COURSE.id;
 function applyCourse(){$("title").textContent=COURSE.name;document.title=COURSE.short+" ゴルフ天気";}
 applyCourse();
 $("course").onchange=()=>{COURSE=COURSES.find(c=>c.id===$("course").value);LAT=COURSE.lat;LON=COURSE.lon;
-  history.replaceState(null,"","#"+COURSE.id);applyCourse();load();};
+  history.replaceState(null,"","#"+COURSE.id);applyCourse();load();loadRadar();};
 for(let h=5;h<=18;h++){$("st").add(new Option(h+"時",h));$("en").add(new Option(h+"時",h));}
 $("st").value=7;$("en").value=15;
 $("st").onchange=$("en").onchange=render;
@@ -191,7 +288,16 @@ function computeAccuracy(){
     sum+=w[m.id];
   }
   for(const k in w)w[k]=sum?w[k]/sum:0;
-  S.acc=res; S.weights=w;
+  S.acc=res; S.weights=w; S.weightSrc="live";
+  // 記録が10日以上あれば、30日分の記録（前日予報）で重みを決める
+  const ag=recAggregate(COURSE.id,30,1);
+  if(ag&&MODELS.every(m=>!S.fc[m.id]||(ag[m.id]&&ag[m.id].days>=10))){
+    const w2={};let s2=0;
+    for(const m of MODELS){const a=ag[m.id];
+      if(!S.fc[m.id]||!a||!a.n){w2[m.id]=0;continue;}
+      w2[m.id]=a.hit/(0.5+a.tmae)+1/(0.3+a.pmae); s2+=w2[m.id];}
+    if(s2){for(const k in w2)w2[k]/=s2; S.weights=w2; S.weightSrc="rec";}
+  }
 }
 
 let loadSeq=0;
@@ -201,14 +307,14 @@ function load(){
   S={fc:{},prev:{},obs:null,station:null,weights:null,day:S.day};
   $("summary").innerHTML='<div class="note">読み込み中…</div>';$("hourly").innerHTML="";$("accBody").textContent="計算中…";
   const cur=S;const lat=LAT,lon=LON;
-  Promise.all([loadForecast(cur),loadPrev(cur),loadObs(cur).catch(e=>{cur.obsErr=String(e);})]).then(()=>{
+  Promise.all([loadRecords(),loadForecast(cur),loadPrev(cur),loadObs(cur).catch(e=>{cur.obsErr=String(e);})]).then(()=>{
     if(my!==loadSeq||cur!==S)return;
     computeAccuracy();
     const ok=MODELS.filter(m=>S.fc[m.id]).length;
     const d=jstNow();
     $("status").innerHTML="更新："+pad(d.getUTCHours())+":"+pad(d.getUTCMinutes())+"　取得できたモデル "+ok+"/4"+
       (ok===0?'<br><span class="err">予報を取得できませんでした。インターネット接続を確認するか、ファイルをダウンロードしてブラウザ（Chrome・Edge・Safari）で開いてください。</span>':"");
-    buildTabs();render();
+    buildTabs();render();renderRec();
   });
 }
 
@@ -281,8 +387,68 @@ function render(){
       MODELS.map(m=>{const x=r.per[m.id];return x?`<td class="${x.p>=RAIN?"r":""}">${f1(x.p)}</td>`:"<td>-</td>";}).join("")+"</tr>";
   }
   $("hourly").innerHTML=h+"</table>";
+  $("wnote").innerHTML=(S.weightSrc==="rec"?"「総合」は<b>30日分の記録</b>で重み付けした平均です。":"「総合」は直近8日の実績で重み付けした平均です。")+"青いマスは雨（1時間0.3mm以上）。";
   renderAcc();
 }
+
+// ===== 的中の記録（data/records.json） =====
+let REC=null, recTried=false;
+async function loadRecords(){
+  if(recTried)return; recTried=true;
+  try{REC=await getJSON("data/records.json?t="+Date.now());}catch(e){REC=null;}
+}
+function recAggregate(cid,period,lead){
+  if(!REC||!REC.courses||!REC.courses[cid])return null;
+  const days=REC.courses[cid].days||{};
+  const today=ymd(jstNow());
+  const from=period?ymd(new Date(jstNow().getTime()-period*86400e3)):"0000";
+  const out={};
+  for(const [d,r] of Object.entries(days)){
+    if(d<from||d>=today)continue;
+    for(const m of MODELS){
+      const x=r.models&&r.models[m.id]&&r.models[m.id][String(lead)]; if(!x)continue;
+      const o=out[m.id]||(out[m.id]={days:0,n:0,hit:0,rain_obs:0,rain_caught:0,fc_rain:0,false_alarm:0,t_n:0,t_err:0,p_err:0});
+      o.days++; for(const k of ["n","hit","rain_obs","rain_caught","fc_rain","false_alarm","t_n","t_err","p_err"])o[k]+=x[k]||0;
+    }
+  }
+  for(const k in out){const o=out[k];o.hit=o.n?o.hit/o.n:null;o.tmae=o.t_n?o.t_err/o.t_n:null;o.pmae=o.n?o.p_err/o.n:null;}
+  return Object.keys(out).length?out:null;
+}
+function renderRec(){
+  const body=$("recBody");
+  if(!REC){body.innerHTML='まだ記録がありません。GitHubで自動記録の設定をすると、ここに毎日の成績がたまっていきます。';return;}
+  const c=REC.courses&&REC.courses[COURSE.id];
+  if(!c){body.textContent="このゴルフ場の記録はまだありません。";return;}
+  const period=+$("recPeriod").value, lead=+$("recLead").value;
+  const ag=recAggregate(COURSE.id,period,lead)||{};
+  const pct=v=>v==null?"-":Math.round(v*100)+"%";
+  const rows=MODELS.map(m=>({m,a:ag[m.id]})).filter(x=>x.a);
+  const score=a=>a&&a.n?a.hit/(0.5+a.tmae)+1/(0.3+a.pmae):-1;
+  const best=rows.slice().sort((x,y)=>score(y.a)-score(x.a))[0];
+  const nd=Object.keys(c.days||{}).length;
+  let h=`<div class="note">比較地点：アメダス「${c.station?c.station.name:"-"}」／記録 ${nd}日分（最終更新 ${REC.updated||"-"}）／7〜17時で比較</div>`;
+  if(!rows.length){body.innerHTML=h+"<div>この期間の記録はまだありません。</div>";return;}
+  h+=`<div class="scroll"><table><tr><th>モデル</th><th>日数</th><th>雨あり・なしの<br>的中率</th><th>雨の見逃し<br>（少ないほど良い）</th><th>雨の空振り<br>（少ないほど良い）</th><th>気温の誤差</th></tr>`;
+  for(const {m,a} of rows){
+    h+=`<tr><td>${m.name}${best&&best.m.id===m.id?" ★":""}</td><td>${a.days}</td><td>${pct(a.hit)}</td>
+      <td>${a.rain_obs?pct((a.rain_obs-a.rain_caught)/a.rain_obs)+`<br><span class="note">${a.rain_obs-a.rain_caught}/${a.rain_obs}時間</span>`:"雨なし"}</td>
+      <td>${a.fc_rain?pct(a.false_alarm/a.fc_rain)+`<br><span class="note">${a.false_alarm}/${a.fc_rain}時間</span>`:"-"}</td>
+      <td>${a.tmae==null?"-":"±"+f1(a.tmae)+"℃"}</td></tr>`;
+  }
+  h+=`</table></div><div class="note" style="margin-top:4px">★はこの条件で最も成績が良いモデル。「見逃し」は雨が降ったのに予報していなかった割合、「空振り」は雨の予報が外れた割合です。</div>`;
+  // 日別の記録（直近14日）
+  const ds=Object.keys(c.days).sort().reverse().slice(0,14);
+  h+=`<h2 style="margin-top:14px;font-size:15px">日別の記録（${["","前日","2日前","3日前"][lead]}の予報の雨量 mm）</h2><div class="scroll"><table><tr><th>日付</th><th>実際</th>${MODELS.map(m=>`<th>${m.name}</th>`).join("")}</tr>`;
+  for(const d of ds){
+    const r=c.days[d], dt=new Date(d+"T00:00:00Z"), ow=r.obs.rain_mm>=1;
+    h+=`<tr><td>${dt.getUTCMonth()+1}/${dt.getUTCDate()}(${WD[dt.getUTCDay()]})</td><td class="${ow?"r":""}">${f1(r.obs.rain_mm)}</td>`+
+      MODELS.map(m=>{const x=r.models&&r.models[m.id]&&r.models[m.id][String(lead)];if(!x)return"<td>-</td>";
+        const fw=x.fc_total>=1;return `<td class="${fw?"r":""}">${f1(x.fc_total)} ${fw===ow?"○":"✕"}</td>`;}).join("")+"</tr>";
+  }
+  h+=`</table></div><div class="note">○＝雨あり・なし（1mm以上）が実際と一致、✕＝不一致。</div>`;
+  body.innerHTML=h;
+}
+$("recPeriod").onchange=$("recLead").onchange=renderRec;
 
 function renderAcc(){
   if(!S.acc){return;}
@@ -306,7 +472,81 @@ function renderAcc(){
   $("accBody").innerHTML=h;
 }
 
+
+// ===== 雨雲マップ =====
+const RCOLORS=[[0.1,"#a0d2ff","0.1"],[1,"#218cff","1"],[5,"#0041ff","5"],[10,"#fab400","10"],[20,"#ff9900","20"],[30,"#ff2800","30"],[50,"#b40068","50"]];
+const RSTEPS=[0,3,6,12,24];
+const NG=11, DLAT=0.1, DLON=0.12;
+let R={map:null,cells:[],data:null,idx0:0,h:0,timer:null,seq:0};
+$("rlegend").innerHTML=RCOLORS.map(c=>`<span><i style="background:${c[1]}"></i>${c[2]}</span>`).join("")+'<span>mm/時〜</span><span><i style="background:#9aa3a8"></i>雲が多い</span>';
+[{id:"jma_seamless",name:"気象庁"},{id:"ecmwf_ifs",name:"ヨーロッパ"},{id:"icon_seamless",name:"ドイツ"},{id:"gfs_seamless",name:"アメリカ"}]
+  .forEach(m=>$("rmodel").add(new Option(m.name,m.id)));
+$("rmodel").onchange=loadRadar;
+RSTEPS.forEach(h=>{const b=document.createElement("button");b.textContent=h?h+"時間後":"今";b.dataset.h=h;b.onclick=()=>{stopPlay();setHour(h);};$("rbtns").appendChild(b);});
+const pb=document.createElement("button");pb.textContent="▶ 再生";pb.id="rplay";pb.onclick=togglePlay;$("rbtns").appendChild(pb);
+$("rslider").oninput=e=>{stopPlay();setHour(+e.target.value);};
+
+function rcolor(p){let c=null;for(const x of RCOLORS)if(p>=x[0])c=x[1];return c;}
+function initMap(){
+  if(R.map||!window.L)return;
+  R.map=L.map("map",{zoomControl:true,attributionControl:true});
+  L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png",{maxZoom:14,attribution:'<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>'}).addTo(R.map);
+}
+function buildGrid(){
+  R.cells.forEach(c=>c.rect.remove()); R.cells=[];
+  if(R.marker)R.marker.remove();
+  const half=(NG-1)/2;
+  for(let i=0;i<NG;i++)for(let j=0;j<NG;j++){
+    const la=LAT+(i-half)*DLAT, lo=LON+(j-half)*DLON;
+    const rect=L.rectangle([[la-DLAT/2,lo-DLON/2],[la+DLAT/2,lo+DLON/2]],{stroke:false,fillOpacity:0,interactive:false}).addTo(R.map);
+    R.cells.push({la,lo,rect});
+  }
+  R.marker=L.circleMarker([LAT,LON],{radius:8,color:"#fff",weight:3,fillColor:"#2f7d4f",fillOpacity:1}).addTo(R.map).bindTooltip(COURSE.short,{permanent:true,direction:"top",offset:[0,-8]});
+  R.map.fitBounds([[LAT-half*DLAT,LON-half*DLON],[LAT+half*DLAT,LON+half*DLON]]);
+}
+async function loadRadar(){
+  if(!window.L){$("rinfo").innerHTML='<span class="err">地図を読み込めませんでした。</span>';return;}
+  initMap(); buildGrid(); stopPlay();
+  const my=++R.seq; R.data=null; $("rinfo").textContent="雨雲の予報を読み込み中…";
+  const lats=R.cells.map(c=>c.la.toFixed(3)).join(","), lons=R.cells.map(c=>c.lo.toFixed(3)).join(",");
+  const url="https://api.open-meteo.com/v1/forecast?latitude="+lats+"&longitude="+lons+
+    "&hourly=precipitation,cloud_cover&timezone=Asia%2FTokyo&forecast_days=3&models="+$("rmodel").value;
+  try{
+    let j=await getJSON(url); if(!Array.isArray(j))j=[j];
+    if(my!==R.seq)return;
+    R.data=j.map(x=>x.hourly);
+    const d=jstNow(); const key=ymd(d)+"T"+pad(d.getUTCHours())+":00";
+    R.idx0=Math.max(0,R.data[0].time.indexOf(key));
+    $("rinfo").textContent="";
+    setHour(R.h);
+  }catch(e){ if(my===R.seq)$("rinfo").innerHTML='<span class="err">雨雲の予報を取得できませんでした。「最新に更新」で再度お試しください。</span>'; }
+}
+function setHour(h){
+  R.h=h; $("rslider").value=h;
+  document.querySelectorAll("#rbtns button[data-h]").forEach(b=>b.classList.toggle("on",+b.dataset.h===h));
+  if(!R.data)return;
+  const k=R.idx0+h, t=R.data[0].time[k]; if(!t)return;
+  const dt=new Date(t.slice(0,10)+"T00:00:00Z");
+  $("rtime").textContent=(h?h+"時間後　":"現在　")+(dt.getUTCMonth()+1)+"/"+dt.getUTCDate()+"("+WD[dt.getUTCDay()]+") "+(+t.slice(11,13))+"時";
+  let wet=0;
+  R.cells.forEach((c,i)=>{
+    const H=R.data[i]; const p=H.precipitation[k], cc=H.cloud_cover?H.cloud_cover[k]:null;
+    const col=p!=null?rcolor(p):null;
+    if(col){c.rect.setStyle({fillColor:col,fillOpacity:0.6});wet++;}
+    else if(cc!=null&&cc>=70){c.rect.setStyle({fillColor:"#9aa3a8",fillOpacity:0.12+(cc-70)/100});}
+    else c.rect.setStyle({fillOpacity:0});
+  });
+  const ci=Math.floor(R.cells.length/2), cp=R.data[ci].precipitation[k];
+  $("rinfo").innerHTML=`ゴルフ場の地点：<b>${cp==null?"-":cp>=0.1?f1(cp)+" mm/時の雨":"雨なし"}</b>　／　周辺で雨のマス ${wet}/${R.cells.length}`;
+}
+function togglePlay(){ if(R.timer){stopPlay();return;}
+  $("rplay").textContent="■ 停止"; let h=R.h>=24?0:R.h;
+  R.timer=setInterval(()=>{h=h>=24?0:h+1;setHour(h);},700);
+}
+function stopPlay(){ if(R.timer){clearInterval(R.timer);R.timer=null;} const b=$("rplay"); if(b)b.textContent="▶ 再生"; }
+$("reload").addEventListener("click",loadRadar);
 load();
+loadRadar();
 </script>
 </body>
 </html>
