@@ -81,8 +81,17 @@ input[type=range]{width:100%}
   </div>
 
   <div class="tabs" id="tabs"></div>
-
   <div class="card" id="summary"></div>
+  <div class="card"><h2>1時間ごとの予報</h2><div class="scroll" id="hourly"></div>
+    <div class="note" id="wnote">「総合」は下の実績で重み付けした平均です。青いマスは雨（1時間0.3mm以上）。</div></div>
+  <div class="card" id="rec"><h2>的中の記録（毎日自動で記録）</h2>
+    <div class="row" style="margin-bottom:6px">
+      <label class="note">期間 <select id="recPeriod" style="font-size:15px"><option value="30">30日</option><option value="90">90日</option><option value="0">全期間</option></select></label>
+      <label class="note">予報のタイミング <select id="recLead" style="font-size:15px"><option value="1">前日</option><option value="2">2日前</option><option value="3">3日前</option></select></label>
+    </div>
+    <div id="recBody" class="note">記録を読み込み中…</div></div>
+  <div class="card" id="daily"><h2 id="dailyTitle">日別の記録</h2><div id="dailyBody" class="note">記録を読み込み中…</div></div>
+  <div class="card" id="acc"><h2>直近8日の的中実績（その場で計算）</h2><div id="accBody" class="note">計算中…</div></div>
   <div class="card">
     <h2>雨雲の動き（予報）</h2>
     <div class="row" style="justify-content:space-between">
@@ -98,15 +107,6 @@ input[type=range]{width:100%}
       今この瞬間の雨雲は <a href="https://www.jma.go.jp/bosai/nowc/" target="_blank" rel="noopener">気象庁「雨雲の動き」</a>、
       15時間先までは <a href="https://www.jma.go.jp/bosai/kaikotan/" target="_blank" rel="noopener">気象庁「今後の雨」</a> で確認できます。</div>
   </div>
-  <div class="card"><h2>1時間ごとの予報</h2><div class="scroll" id="hourly"></div>
-    <div class="note" id="wnote">「総合」は下の実績で重み付けした平均です。青いマスは雨（1時間0.3mm以上）。</div></div>
-  <div class="card" id="rec"><h2>的中の記録（毎日自動で記録）</h2>
-    <div class="row" style="margin-bottom:6px">
-      <label class="note">期間 <select id="recPeriod" style="font-size:15px"><option value="30">30日</option><option value="90">90日</option><option value="0">全期間</option></select></label>
-      <label class="note">予報のタイミング <select id="recLead" style="font-size:15px"><option value="1">前日</option><option value="2">2日前</option><option value="3">3日前</option></select></label>
-    </div>
-    <div id="recBody" class="note">記録を読み込み中…</div></div>
-  <div class="card" id="acc"><h2>直近8日の的中実績（その場で計算）</h2><div id="accBody" class="note">計算中…</div></div>
   <div class="card" id="sources">
     <h2>予報データの情報ソース</h2>
     <div class="note">4つの予報はすべて、無料の気象データサービス <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo（スイス）</a> 経由で取得しています。Open-Meteoは各国の気象機関が公開した計算結果を配信しているだけで、予報の中身は下の各機関のものです。</div>
@@ -416,6 +416,7 @@ function recAggregate(cid,period,lead){
 }
 function renderRec(){
   const body=$("recBody");
+  $("dailyBody").textContent="まだ記録がありません。";
   if(!REC){body.innerHTML='まだ記録がありません。GitHubで自動記録の設定をすると、ここに毎日の成績がたまっていきます。';return;}
   const c=REC.courses&&REC.courses[COURSE.id];
   if(!c){body.textContent="このゴルフ場の記録はまだありません。";return;}
@@ -436,9 +437,11 @@ function renderRec(){
       <td>${a.tmae==null?"-":"±"+f1(a.tmae)+"℃"}</td></tr>`;
   }
   h+=`</table></div><div class="note" style="margin-top:4px">★はこの条件で最も成績が良いモデル。「見逃し」は雨が降ったのに予報していなかった割合、「空振り」は雨の予報が外れた割合です。</div>`;
+  body.innerHTML=h;
   // 日別の記録（直近14日）
+  $("dailyTitle").textContent="日別の記録（"+["","前日","2日前","3日前"][lead]+"の予報の雨量 mm）";
   const ds=Object.keys(c.days).sort().reverse().slice(0,14);
-  h+=`<h2 style="margin-top:14px;font-size:15px">日別の記録（${["","前日","2日前","3日前"][lead]}の予報の雨量 mm）</h2><div class="scroll"><table><tr><th>日付</th><th>実際</th>${MODELS.map(m=>`<th>${m.name}</th>`).join("")}</tr>`;
+  h=`<div class="note">予報のタイミングは「的中の記録」の選択に連動します。</div><div class="scroll"><table><tr><th>日付</th><th>実際</th>${MODELS.map(m=>`<th>${m.name}</th>`).join("")}</tr>`;
   for(const d of ds){
     const r=c.days[d], dt=new Date(d+"T00:00:00Z"), ow=r.obs.rain_mm>=1;
     h+=`<tr><td>${dt.getUTCMonth()+1}/${dt.getUTCDate()}(${WD[dt.getUTCDay()]})</td><td class="${ow?"r":""}">${f1(r.obs.rain_mm)}</td>`+
@@ -446,7 +449,7 @@ function renderRec(){
         const fw=x.fc_total>=1;return `<td class="${fw?"r":""}">${f1(x.fc_total)} ${fw===ow?"○":"✕"}</td>`;}).join("")+"</tr>";
   }
   h+=`</table></div><div class="note">○＝雨あり・なし（1mm以上）が実際と一致、✕＝不一致。</div>`;
-  body.innerHTML=h;
+  $("dailyBody").innerHTML=h;
 }
 $("recPeriod").onchange=$("recLead").onchange=renderRec;
 
