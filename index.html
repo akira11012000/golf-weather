@@ -242,7 +242,7 @@ applyCourse();
 $("course").onchange=()=>{COURSE=COURSES.find(c=>c.id===$("course").value);LAT=COURSE.lat;LON=COURSE.lon;$("delBtn").hidden=!COURSE.custom;
   history.replaceState(null,"","#"+COURSE.id);applyCourse();load();loadRadar();};
 for(let h=5;h<=18;h++){$("st").add(new Option(h+"時",h));$("en").add(new Option(h+"時",h));}
-$("st").value=7;$("en").value=15;
+$("st").value=5;$("en").value=15;
 $("st").onchange=$("en").onchange=render;
 $("reload").onclick=load;
 
@@ -308,7 +308,7 @@ async function getJSON(url){const r=await fetch(url);if(!r.ok)throw new Error(r.
 
 async function loadForecast(S){
   const base="https://api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+
-    "&hourly=temperature_2m,precipitation,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&timezone=Asia%2FTokyo&forecast_days=7&models=";
+    "&hourly=temperature_2m,precipitation,cloud_cover,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&timezone=Asia%2FTokyo&forecast_days=7&models=";
   await Promise.all(MODELS.map(async m=>{
     try{S.fc[m.id]=(await getJSON(base+m.id)).hourly;}catch(e){S.fc[m.id]=null;}
   }));
@@ -427,23 +427,47 @@ function buildTabs(){
   });
 }
 
+// 1時間ごとの天気マーク（快晴・晴れ・曇り・少雨・中雨・豪雨）
+function wxKind(p,cloud){
+  if(p>=10)return"heavy"; if(p>=3)return"mid"; if(p>=0.3)return"light";
+  if(cloud==null)return"sun";
+  if(cloud<15)return"clear"; if(cloud<85)return"sun"; return"cloud";
+}
+const WXNAME={clear:"快晴",sun:"晴れ",cloud:"曇り",light:"少雨",mid:"中雨",heavy:"豪雨"};
+function wxIcon(k){
+  const sun=(cx,cy,r)=>`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#f5a524"/>`+
+    [...Array(8)].map((_,i)=>{const a=i*Math.PI/4;
+      return `<line x1="${cx+Math.cos(a)*(r+2)}" y1="${cy+Math.sin(a)*(r+2)}" x2="${cx+Math.cos(a)*(r+5)}" y2="${cy+Math.sin(a)*(r+5)}" stroke="#f5a524" stroke-width="2.4" stroke-linecap="round"/>`}).join("");
+  const cloud=(fill)=>`<g fill="${fill}"><circle cx="13" cy="19" r="7"/><circle cx="22" cy="15" r="9"/><circle cx="31" cy="20" r="6"/><rect x="6" y="19" width="31" height="8" rx="4"/></g>`;
+  const drops=(n,col,y)=>[...Array(n)].map((_,i)=>`<line x1="${13+i*8}" y1="${y}" x2="${11+i*8}" y2="${y+7}" stroke="${col}" stroke-width="${n>2?3:2.4}" stroke-linecap="round"/>`).join("");
+  let b="";
+  if(k==="clear")b=sun(21,20,9);
+  else if(k==="sun")b=sun(14,15,7)+cloud("#c9d6e3");
+  else if(k==="cloud")b=cloud("#9aa8b6");
+  else if(k==="light")b=cloud("#8fa0b2")+drops(2,"#4a9be8",29);
+  else if(k==="mid")b=cloud("#7c8ea1")+drops(3,"#2f6fd6",29);
+  else b=cloud("#5f7085")+drops(3,"#1b3f9e",29)+`<line x1="10" y1="30" x2="8" y2="38" stroke="#1b3f9e" stroke-width="3" stroke-linecap="round"/><line x1="34" y1="30" x2="32" y2="38" stroke="#1b3f9e" stroke-width="3" stroke-linecap="round"/>`;
+  return `<svg viewBox="0 0 44 40" width="30" height="27" aria-hidden="true">${b}</svg>`;
+}
 function render(){
   const any=MODELS.map(m=>S.fc[m.id]).find(x=>x); if(!any){$("summary").innerHTML="";$("hourly").innerHTML="";renderAcc();return;}
   const st=+$("st").value,en=+$("en").value;
   const rows=[];
   any.time.forEach((t,i)=>{
     if(t.slice(0,10)!==S.day)return; const h=+t.slice(11,13); if(h<st||h>en)return;
-    const per={};let wp=0,wt=0,ws=0,wsum=0,wd=null;
+    const per={};let wp=0,wt=0,ws=0,wsum=0,wd=null,wc=0,wcs=0;
     for(const m of MODELS){
       const H=S.fc[m.id]; if(!H)continue; const j=H.time.indexOf(t); if(j<0)continue;
       const p=H.precipitation[j],tt=H.temperature_2m[j],s=H.wind_speed_10m[j];
       if(p==null||tt==null)continue;
-      per[m.id]={p,t:tt,s,d:H.wind_direction_10m[j]};
+      const cc=H.cloud_cover?H.cloud_cover[j]:null;
+      per[m.id]={p,t:tt,s,c:cc,d:H.wind_direction_10m[j]};
       const w=S.weights[m.id]||0; wp+=w*p;wt+=w*tt;ws+=w*(s||0);wsum+=w;
+      if(cc!=null){wc+=w*cc;wcs+=w;}
       if(m.id==="jma_seamless"||wd==null)wd=H.wind_direction_10m[j];
     }
     if(!wsum)return;
-    rows.push({h,per,p:wp/wsum,t:wt/wsum,s:ws/wsum,d:wd});
+    rows.push({h,per,p:wp/wsum,t:wt/wsum,s:ws/wsum,d:wd,c:wcs?wc/wcs:null});
   });
   if(!rows.length){$("summary").innerHTML='<div class="note">この日のこの時間帯の予報はまだありません。</div>';$("hourly").innerHTML="";renderAcc();return;}
   // summary
@@ -475,13 +499,14 @@ function render(){
    </div>
    <div class="note" style="margin-top:8px">モデル別の合計雨量：${modelRain.map(x=>x.m.name+" "+f1(x.tot)+"mm").join("　")}</div>`;
   // hourly
-  let h=`<table><tr><th>時刻</th><th>総合<br>雨mm</th><th>気温</th><th>風</th>${MODELS.map(m=>`<th>${m.name}<br>雨mm</th>`).join("")}</tr>`;
+  let h=`<table><tr><th>時刻</th><th>天気</th><th>総合<br>雨mm</th><th>気温</th><th>風</th>${MODELS.map(m=>`<th>${m.name}<br>雨mm</th>`).join("")}</tr>`;
   for(const r of rows){
-    h+=`<tr><td>${r.h}時</td><td class="${r.p>=RAIN?"r":""}">${f1(r.p)}</td><td>${Math.round(r.t)}℃</td><td>${dirJa(r.d)} ${Math.round(r.s)}m</td>`+
+    const k=wxKind(r.p,r.c);
+    h+=`<tr><td>${r.h}時</td><td title="${WXNAME[k]}"><div>${wxIcon(k)}</div><div style="font-size:11px;color:var(--sub);margin-top:-4px">${WXNAME[k]}</div></td><td class="${r.p>=RAIN?"r":""}">${f1(r.p)}</td><td>${Math.round(r.t)}℃</td><td>${dirJa(r.d)} ${Math.round(r.s)}m</td>`+
       MODELS.map(m=>{const x=r.per[m.id];return x?`<td class="${x.p>=RAIN?"r":""}">${f1(x.p)}</td>`:"<td>-</td>";}).join("")+"</tr>";
   }
   $("hourly").innerHTML=h+"</table>";
-  $("wnote").innerHTML=(S.weightSrc==="rec"?"「総合」は<b>30日分の記録</b>で重み付けした平均です。":"「総合」は直近8日の実績で重み付けした平均です。")+"青いマスは雨（1時間0.3mm以上）。";
+  $("wnote").innerHTML=(S.weightSrc==="rec"?"「総合」は<b>30日分の記録</b>で重み付けした平均です。":"「総合」は直近8日の実績で重み付けした平均です。")+"青いマスは雨（1時間0.3mm以上）。天気マークは1時間の雨量と雲量から判定：快晴（雲15%未満）／晴れ（85%未満）／曇り（85%以上）／少雨（0.3mm〜）／中雨（3mm〜）／豪雨（10mm〜）。";
   renderAcc();
 }
 
