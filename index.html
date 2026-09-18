@@ -37,10 +37,11 @@ h2{font-size:17px;margin:0 0 8px}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
 #hourly table{font-size:13px}
-#hourly th,#hourly td{padding:2px 3px}
+#hourly th,#hourly td{padding:1px 3px}
+#hourly td>div{line-height:1.15}
 #hourly td{line-height:1.25}
 .wxc{display:flex;align-items:center;justify-content:center;gap:3px}
-.wxc span{font-size:11px;color:var(--sub)}
+.wxc span{font-size:10.5px;color:var(--sub)}
 details.models{margin-top:8px}
 details.models summary{cursor:pointer;font-size:14px;font-weight:600;color:var(--green);list-style:none}
 details.models summary::-webkit-details-marker{display:none}
@@ -207,6 +208,7 @@ input[type=range]{width:100%}
   </div>
   <div class="card note">
     <b>見かた</b><br>
+    ・<b>天気マーク</b>：1時間の雨量と雲量から判定します。快晴（雲量15%未満）／晴れ（85%未満）／曇り（85%以上）／少雨（0.3mm以上）／中雨（3mm以上）／豪雨（10mm以上）。<br>
     ・<b>信頼度</b>：4つのモデルの予報がそろっているほど高くなります。「低」のときは前日夜にもう一度確認してください。<br>
     ・<b>的中実績</b>：過去約1週間、各モデルが「前日」に出した予報と、近くのアメダス（気象庁の実測）を比べた結果です。開くたびに計算し直します。<br>
     ・データ：Open-Meteo（予報）、気象庁アメダス（実測）。台風の進路は気象庁の台風情報もあわせて確認してください。
@@ -226,8 +228,8 @@ let COURSE=COURSES.find(c=>"#"+c.id===location.hash)||COURSES[0];
 let LAT=COURSE.lat, LON=COURSE.lon;
 const MODELS=[
   {id:"jma_seamless",name:"気象庁"},
-  {id:"ecmwf_ifs",name:"ヨーロッパ"},
-  {id:"gfs_seamless",name:"アメリカ"},
+  {id:"ecmwf_ifs",name:"EU"},
+  {id:"gfs_seamless",name:"US"},
   {id:"icon_seamless",name:"ドイツ"}
 ];
 const RAIN=0.3; // mm/h
@@ -509,11 +511,12 @@ function render(){
    </div>
    <div class="note" style="margin-top:8px">モデル別の合計雨量：${modelRain.map(x=>x.m.name+" "+f1(x.tot)+"mm").join("　")}</div>`;
   // hourly
-  let h=`<table><tr><th>時刻</th><th>天気</th><th>雨mm</th><th>気温</th><th>風</th></tr>`;
+  let h=`<table><tr><th>時刻</th><th>天気</th><th>雨<br>mm</th><th>気温<br>℃</th><th>風<br>m/s</th></tr>`;
   for(const r of rows){
     const k=wxKind(r.p,r.c);
     h+=`<tr><td>${r.h}時</td><td><div class="wxc">${wxIcon(k)}<span>${WXNAME[k]}</span></div></td>`+
-      `<td class="${r.p>=RAIN?"r":""}">${f1(r.p)}</td><td>${Math.round(r.t)}℃</td><td>${dirJa(r.d)}${Math.round(r.s)}m</td></tr>`;
+      `<td class="${r.p>=RAIN?"r":""}">${f1(r.p)}</td><td>${Math.round(r.t)}</td>`+
+      `<td><div style="font-size:11px;color:var(--sub);line-height:1.1">${dirJa(r.d)}</div><div>${Math.round(r.s)}</div></td></tr>`;
   }
   h+="</table>";
   let h2=`<div class="scroll"><table><tr><th>時刻</th>${MODELS.map(m=>`<th>${m.name}<br>雨mm</th>`).join("")}</tr>`;
@@ -522,7 +525,7 @@ function render(){
   }
   h2+="</table></div>";
   $("hourly").innerHTML=h+`<details class="models"><summary>4つの予報の雨量を比べる</summary>${h2}</details>`;
-  $("wnote").innerHTML=(S.weightSrc==="rec"?"「総合」は<b>30日分の記録</b>で重み付けした平均です。":"「総合」は直近8日の実績で重み付けした平均です。")+"青いマスは雨（1時間0.3mm以上）。天気マークは1時間の雨量と雲量から判定：快晴（雲15%未満）／晴れ（85%未満）／曇り（85%以上）／少雨（0.3mm〜）／中雨（3mm〜）／豪雨（10mm〜）。";
+  $("wnote").innerHTML=(S.weightSrc==="rec"?"「総合」は<b>30日分の記録</b>で重み付けした平均です。":"「総合」は直近8日の実績で重み付けした平均です。")+"　青いマスは雨。";
   renderAcc();
 }
 
@@ -617,7 +620,7 @@ const RSTEPS=[0,3,6,12,24];
 const NG=11, DLAT=0.1, DLON=0.12;
 let R={map:null,cells:[],data:null,idx0:0,h:0,timer:null,seq:0};
 $("rlegend").innerHTML=RCOLORS.map(c=>`<span><i style="background:${c[1]}"></i>${c[2]}</span>`).join("")+'<span>mm/時〜</span><span><i style="background:#9aa3a8"></i>雲が多い</span>';
-[{id:"jma_seamless",name:"気象庁"},{id:"ecmwf_ifs",name:"ヨーロッパ"},{id:"icon_seamless",name:"ドイツ"},{id:"gfs_seamless",name:"アメリカ"}]
+[{id:"jma_seamless",name:"気象庁"},{id:"ecmwf_ifs",name:"EU"},{id:"icon_seamless",name:"ドイツ"},{id:"gfs_seamless",name:"US"}]
   .forEach(m=>$("rmodel").add(new Option(m.name,m.id)));
 $("rmodel").onchange=loadRadar;
 RSTEPS.forEach(h=>{const b=document.createElement("button");b.textContent=h?h+"時間後":"今";b.dataset.h=h;b.onclick=()=>{stopPlay();setHour(h);};$("rbtns").appendChild(b);});
