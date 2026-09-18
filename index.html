@@ -36,6 +36,16 @@ h2{font-size:17px;margin:0 0 8px}
 .hi{background:var(--ok)}.mid{background:var(--warn)}.lo{background:var(--bad)}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+#hourly table{font-size:13px}
+#hourly th,#hourly td{padding:2px 3px}
+#hourly td{line-height:1.25}
+.wxc{display:flex;align-items:center;justify-content:center;gap:3px}
+.wxc span{font-size:11px;color:var(--sub)}
+details.models{margin-top:8px}
+details.models summary{cursor:pointer;font-size:14px;font-weight:600;color:var(--green);list-style:none}
+details.models summary::-webkit-details-marker{display:none}
+details.models summary::after{content:" ＋"}
+details.models[open] summary::after{content:" －"}
 th{color:var(--sub);font-weight:600;font-size:12px}
 td.r{background:var(--rainbg);color:var(--rain);font-weight:700}
 .scroll{overflow-x:auto}
@@ -447,7 +457,7 @@ function wxIcon(k){
   else if(k==="light")b=cloud("#8fa0b2")+drops(2,"#4a9be8",29);
   else if(k==="mid")b=cloud("#7c8ea1")+drops(3,"#2f6fd6",29);
   else b=cloud("#5f7085")+drops(3,"#1b3f9e",29)+`<line x1="10" y1="30" x2="8" y2="38" stroke="#1b3f9e" stroke-width="3" stroke-linecap="round"/><line x1="34" y1="30" x2="32" y2="38" stroke="#1b3f9e" stroke-width="3" stroke-linecap="round"/>`;
-  return `<svg viewBox="0 0 44 40" width="30" height="27" aria-hidden="true">${b}</svg>`;
+  return `<svg viewBox="0 0 44 40" width="22" height="20" aria-hidden="true">${b}</svg>`;
 }
 function render(){
   const any=MODELS.map(m=>S.fc[m.id]).find(x=>x); if(!any){$("summary").innerHTML="";$("hourly").innerHTML="";renderAcc();return;}
@@ -499,13 +509,19 @@ function render(){
    </div>
    <div class="note" style="margin-top:8px">モデル別の合計雨量：${modelRain.map(x=>x.m.name+" "+f1(x.tot)+"mm").join("　")}</div>`;
   // hourly
-  let h=`<table><tr><th>時刻</th><th>天気</th><th>総合<br>雨mm</th><th>気温</th><th>風</th>${MODELS.map(m=>`<th>${m.name}<br>雨mm</th>`).join("")}</tr>`;
+  let h=`<table><tr><th>時刻</th><th>天気</th><th>雨mm</th><th>気温</th><th>風</th></tr>`;
   for(const r of rows){
     const k=wxKind(r.p,r.c);
-    h+=`<tr><td>${r.h}時</td><td title="${WXNAME[k]}"><div>${wxIcon(k)}</div><div style="font-size:11px;color:var(--sub);margin-top:-4px">${WXNAME[k]}</div></td><td class="${r.p>=RAIN?"r":""}">${f1(r.p)}</td><td>${Math.round(r.t)}℃</td><td>${dirJa(r.d)} ${Math.round(r.s)}m</td>`+
-      MODELS.map(m=>{const x=r.per[m.id];return x?`<td class="${x.p>=RAIN?"r":""}">${f1(x.p)}</td>`:"<td>-</td>";}).join("")+"</tr>";
+    h+=`<tr><td>${r.h}時</td><td><div class="wxc">${wxIcon(k)}<span>${WXNAME[k]}</span></div></td>`+
+      `<td class="${r.p>=RAIN?"r":""}">${f1(r.p)}</td><td>${Math.round(r.t)}℃</td><td>${dirJa(r.d)}${Math.round(r.s)}m</td></tr>`;
   }
-  $("hourly").innerHTML=h+"</table>";
+  h+="</table>";
+  let h2=`<div class="scroll"><table><tr><th>時刻</th>${MODELS.map(m=>`<th>${m.name}<br>雨mm</th>`).join("")}</tr>`;
+  for(const r of rows){
+    h2+=`<tr><td>${r.h}時</td>`+MODELS.map(m=>{const x=r.per[m.id];return x?`<td class="${x.p>=RAIN?"r":""}">${f1(x.p)}</td>`:"<td>-</td>";}).join("")+"</tr>";
+  }
+  h2+="</table></div>";
+  $("hourly").innerHTML=h+`<details class="models"><summary>4つの予報の雨量を比べる</summary>${h2}</details>`;
   $("wnote").innerHTML=(S.weightSrc==="rec"?"「総合」は<b>30日分の記録</b>で重み付けした平均です。":"「総合」は直近8日の実績で重み付けした平均です。")+"青いマスは雨（1時間0.3mm以上）。天気マークは1時間の雨量と雲量から判定：快晴（雲15%未満）／晴れ（85%未満）／曇り（85%以上）／少雨（0.3mm〜）／中雨（3mm〜）／豪雨（10mm〜）。";
   renderAcc();
 }
