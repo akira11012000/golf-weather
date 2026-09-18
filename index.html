@@ -511,20 +511,15 @@ function render(){
    </div>
    <div class="note" style="margin-top:8px">モデル別の合計雨量：${modelRain.map(x=>x.m.name+" "+f1(x.tot)+"mm").join("　")}</div>`;
   // hourly
-  let h=`<table><tr><th>時刻</th><th>天気</th><th>雨<br>mm</th><th>気温<br>℃</th><th>風<br>m/s</th></tr>`;
+  let h=`<div class="scroll"><table><tr><th>時刻</th><th>天気</th><th>総合<br>雨mm</th><th>気温<br>℃</th><th>風<br>m/s</th>${MODELS.map(m=>`<th>${m.name}<br>雨mm</th>`).join("")}</tr>`;
   for(const r of rows){
     const k=wxKind(r.p,r.c);
     h+=`<tr><td>${r.h}時</td><td><div class="wxc">${wxIcon(k)}<span>${WXNAME[k]}</span></div></td>`+
       `<td class="${r.p>=RAIN?"r":""}">${f1(r.p)}</td><td>${Math.round(r.t)}</td>`+
-      `<td><div style="font-size:11px;color:var(--sub);line-height:1.1">${dirJa(r.d)}</div><div>${Math.round(r.s)}</div></td></tr>`;
+      `<td><div style="font-size:11px;color:var(--sub);line-height:1.1">${dirJa(r.d)}</div><div>${Math.round(r.s)}</div></td>`+
+      MODELS.map(m=>{const x=r.per[m.id];return x?`<td class="${x.p>=RAIN?"r":""}">${f1(x.p)}</td>`:"<td>-</td>";}).join("")+"</tr>";
   }
-  h+="</table>";
-  let h2=`<div class="scroll"><table><tr><th>時刻</th>${MODELS.map(m=>`<th>${m.name}<br>雨mm</th>`).join("")}</tr>`;
-  for(const r of rows){
-    h2+=`<tr><td>${r.h}時</td>`+MODELS.map(m=>{const x=r.per[m.id];return x?`<td class="${x.p>=RAIN?"r":""}">${f1(x.p)}</td>`:"<td>-</td>";}).join("")+"</tr>";
-  }
-  h2+="</table></div>";
-  $("hourly").innerHTML=h+`<details class="models"><summary>4つの予報の雨量を比べる</summary>${h2}</details>`;
+  $("hourly").innerHTML=h+"</table></div>";
   $("wnote").innerHTML=(S.weightSrc==="rec"?"「総合」は<b>30日分の記録</b>で重み付けした平均です。":"「総合」は直近8日の実績で重み付けした平均です。")+"　青いマスは雨。";
   renderAcc();
 }
