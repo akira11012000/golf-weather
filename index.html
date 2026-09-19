@@ -36,8 +36,15 @@ h2{font-size:17px;margin:0 0 8px}
 .hi{background:var(--ok)}.mid{background:var(--warn)}.lo{background:var(--bad)}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
-#hourly table{font-size:13px}
-#hourly th,#hourly td{padding:1px 3px}
+#hourly table{font-size:12px;table-layout:fixed;width:100%}
+#hourly th:first-child,#hourly td:first-child{width:24px}
+#hourly th:nth-child(2),#hourly td:nth-child(2){width:30px}
+#hourly .wd{font-size:10px;color:var(--sub);line-height:1.05}
+#hourly td.w1{background:#fff3c4;color:#7a5b00;font-weight:700}
+#hourly td.w2{background:#ffd9a8;color:#8a4b00;font-weight:700}
+#hourly td.w3{background:#ffc2bd;color:#9b1c12;font-weight:700}
+@media (prefers-color-scheme:dark){#hourly td.w1{background:#4a3c00;color:#ffe083}#hourly td.w2{background:#5a3300;color:#ffc078}#hourly td.w3{background:#5c1b16;color:#ffb0a8}}
+#hourly th,#hourly td{padding:1px 2px}
 #hourly td>div{line-height:1.15}
 #hourly td{line-height:1.25}
 .wxc{display:flex;align-items:center;justify-content:center;gap:3px}
@@ -208,7 +215,8 @@ input[type=range]{width:100%}
   </div>
   <div class="card note">
     <b>見かた</b><br>
-    ・<b>天気マーク</b>：1時間の雨量と雲量から判定します。快晴（雲量15%未満）／晴れ（85%未満）／曇り（85%以上）／少雨（0.3mm以上）／中雨（3mm以上）／豪雨（10mm以上）。<br>
+    ・<b>天気マーク</b>：1時間の雨量と雲量から判定します。太陽＝快晴（雲量15%未満）／太陽と雲＝晴れ（85%未満）／雲＝曇り（85%以上）／雲としずく2本＝少雨（0.3mm以上）／黒い雲としずく3本＝中雨（3mm以上）／濃い黒の雲＝豪雨（10mm以上）。<br>
+    ・<b>風の色</b>：黄＝5m/s以上（アプローチに影響）、橙＝7m/s以上（番手の調整が必要）、赤＝10m/s以上（強風）。<br>
     ・<b>信頼度</b>：4つのモデルの予報がそろっているほど高くなります。「低」のときは前日夜にもう一度確認してください。<br>
     ・<b>的中実績</b>：過去約1週間、各モデルが「前日」に出した予報と、近くのアメダス（気象庁の実測）を比べた結果です。開くたびに計算し直します。<br>
     ・データ：Open-Meteo（予報）、気象庁アメダス（実測）。台風の進路は気象庁の台風情報もあわせて確認してください。
@@ -449,18 +457,21 @@ const WXNAME={clear:"快晴",sun:"晴れ",cloud:"曇り",light:"少雨",mid:"中
 function wxIcon(k){
   const sun=(cx,cy,r)=>`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#f5a524"/>`+
     [...Array(8)].map((_,i)=>{const a=i*Math.PI/4;
-      return `<line x1="${cx+Math.cos(a)*(r+2)}" y1="${cy+Math.sin(a)*(r+2)}" x2="${cx+Math.cos(a)*(r+5)}" y2="${cy+Math.sin(a)*(r+5)}" stroke="#f5a524" stroke-width="2.4" stroke-linecap="round"/>`}).join("");
-  const cloud=(fill)=>`<g fill="${fill}"><circle cx="13" cy="19" r="7"/><circle cx="22" cy="15" r="9"/><circle cx="31" cy="20" r="6"/><rect x="6" y="19" width="31" height="8" rx="4"/></g>`;
+      return `<line x1="${cx+Math.cos(a)*(r+2)}" y1="${cy+Math.sin(a)*(r+2)}" x2="${cx+Math.cos(a)*(r+5.5)}" y2="${cy+Math.sin(a)*(r+5.5)}" stroke="#f5a524" stroke-width="2.6" stroke-linecap="round"/>`}).join("");
+  const cloud=(fill,x,y,sc)=>`<g fill="${fill}" transform="translate(${x} ${y}) scale(${sc})"><circle cx="13" cy="19" r="7"/><circle cx="22" cy="15" r="9"/><circle cx="31" cy="20" r="6"/><rect x="6" y="19" width="31" height="8" rx="4"/></g>`;
   const drops=(n,col,y)=>[...Array(n)].map((_,i)=>`<line x1="${13+i*8}" y1="${y}" x2="${11+i*8}" y2="${y+7}" stroke="${col}" stroke-width="${n>2?3:2.4}" stroke-linecap="round"/>`).join("");
   let b="";
-  if(k==="clear")b=sun(21,20,9);
-  else if(k==="sun")b=sun(14,15,7)+cloud("#c9d6e3");
-  else if(k==="cloud")b=cloud("#9aa8b6");
-  else if(k==="light")b=cloud("#8fa0b2")+drops(2,"#4a9be8",29);
-  else if(k==="mid")b=cloud("#7c8ea1")+drops(3,"#2f6fd6",29);
-  else b=cloud("#5f7085")+drops(3,"#1b3f9e",29)+`<line x1="10" y1="30" x2="8" y2="38" stroke="#1b3f9e" stroke-width="3" stroke-linecap="round"/><line x1="34" y1="30" x2="32" y2="38" stroke="#1b3f9e" stroke-width="3" stroke-linecap="round"/>`;
-  return `<svg viewBox="0 0 44 40" width="22" height="20" aria-hidden="true">${b}</svg>`;
+  if(k==="clear")b=sun(22,20,11);                                  // 快晴：太陽のみ
+  else if(k==="sun")b=sun(12,14,7.5)+cloud("#c4d2e0",6,6,0.78);    // 晴れ：太陽と雲を半々
+  else if(k==="cloud")b=cloud("#9aa8b6",2,4,1);
+  else if(k==="light")b=cloud("#8fa0b2",2,2,1)+drops(2,"#4a9be8",29);
+  else if(k==="mid")b=cloud("#3a4048",2,2,1)+drops(3,"#2f6fd6",29); // 中雨：黒い雲
+  else b=cloud("#15181d",2,2,1)+drops(3,"#1b3f9e",29)+
+    `<line x1="10" y1="30" x2="8" y2="38" stroke="#1b3f9e" stroke-width="3" stroke-linecap="round"/><line x1="34" y1="30" x2="32" y2="38" stroke="#1b3f9e" stroke-width="3" stroke-linecap="round"/>`;
+  return `<svg viewBox="0 0 44 40" width="24" height="22" aria-hidden="true">${b}</svg>`;
 }
+// 風の注意レベル（0=なし 1=黄 2=橙 3=赤）
+function windLevel(v){return v>=10?3:v>=7?2:v>=5?1:0;}
 function render(){
   const any=MODELS.map(m=>S.fc[m.id]).find(x=>x); if(!any){$("summary").innerHTML="";$("hourly").innerHTML="";renderAcc();return;}
   const st=+$("st").value,en=+$("en").value;
@@ -511,15 +522,17 @@ function render(){
    </div>
    <div class="note" style="margin-top:8px">モデル別の合計雨量：${modelRain.map(x=>x.m.name+" "+f1(x.tot)+"mm").join("　")}</div>`;
   // hourly
-  let h=`<div class="scroll"><table><tr><th>時刻</th><th>天気</th><th>総合<br>雨mm</th><th>気温<br>℃</th><th>風<br>m/s</th>${MODELS.map(m=>`<th>${m.name}<br>雨mm</th>`).join("")}</tr>`;
+  let h=`<table><tr><th>時</th><th>天気</th><th>気温<br>℃</th><th>風<br>m/s</th><th>総合<br>雨mm</th>${MODELS.map(m=>`<th>${m.name}</th>`).join("")}</tr>`;
   for(const r of rows){
     const k=wxKind(r.p,r.c);
-    h+=`<tr><td>${r.h}時</td><td><div class="wxc">${wxIcon(k)}<span>${WXNAME[k]}</span></div></td>`+
-      `<td class="${r.p>=RAIN?"r":""}">${f1(r.p)}</td><td>${Math.round(r.t)}</td>`+
-      `<td><div style="font-size:11px;color:var(--sub);line-height:1.1">${dirJa(r.d)}</div><div>${Math.round(r.s)}</div></td>`+
+    const wl=windLevel(r.s);
+    h+=`<tr><td>${r.h}</td><td title="${WXNAME[k]}">${wxIcon(k)}</td>`+
+      `<td>${Math.round(r.t)}</td>`+
+      `<td class="w${wl}"><div class="wd">${dirJa(r.d)}</div><div>${Math.round(r.s)}</div></td>`+
+      `<td class="${r.p>=RAIN?"r":""}">${f1(r.p)}</td>`+
       MODELS.map(m=>{const x=r.per[m.id];return x?`<td class="${x.p>=RAIN?"r":""}">${f1(x.p)}</td>`:"<td>-</td>";}).join("")+"</tr>";
   }
-  $("hourly").innerHTML=h+"</table></div>";
+  $("hourly").innerHTML=h+"</table>";
   $("wnote").innerHTML=(S.weightSrc==="rec"?"「総合」は<b>30日分の記録</b>で重み付けした平均です。":"「総合」は直近8日の実績で重み付けした平均です。")+"　青いマスは雨。";
   renderAcc();
 }
